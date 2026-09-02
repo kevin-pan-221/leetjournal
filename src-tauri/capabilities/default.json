@@ -5,7 +5,13 @@
   "webviews": ["main"],
   "permissions": [
     "core:default",
-    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://leetcode.com/*" },
+        { "url": "https://www.leetcode.com/*" }
+      ]
+    },
     "core:webview:allow-create-webview",
     "core:webview:allow-set-webview-position",
     "core:webview:allow-set-webview-size",

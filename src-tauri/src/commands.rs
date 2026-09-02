@@ -1127,24 +1127,32 @@ struct LmModel {
     id: String,
 }
 
-#[tauri::command]
-pub async fn get_leetcode_editor_code(webview_label: String, app: AppHandle) -> AppResult<String> {
-    if !webview_label.starts_with("leetcode-workspace-") {
+fn leetcode_webview(app: &AppHandle, label: &str) -> AppResult<tauri::Webview> {
+    if !label.starts_with("leetcode-workspace-") {
         return Err(AppError::Message("Invalid LeetCode workspace".into()));
     }
-    let webview = app
-        .get_webview(&webview_label)
-        .ok_or_else(|| AppError::Message("The LeetCode editor is not ready yet.".into()))?;
+    app.get_webview(label)
+        .ok_or_else(|| AppError::Message("The LeetCode workspace is not ready yet.".into()))
+}
+
+fn ensure_leetcode_page(webview: &tauri::Webview) -> AppResult<()> {
     let url = webview
         .url()
-        .map_err(|e| AppError::Message(e.to_string()))?;
-    if url.scheme() != "https"
-        || !matches!(url.host_str(), Some("leetcode.com" | "www.leetcode.com"))
+        .map_err(|error| AppError::Message(error.to_string()))?;
+    if url.scheme() == "https"
+        && matches!(url.host_str(), Some("leetcode.com" | "www.leetcode.com"))
     {
-        return Err(AppError::Message(
-            "Editor context is only available from LeetCode.".into(),
-        ));
+        return Ok(());
     }
+    Err(AppError::Message(
+        "Editor context is only available from LeetCode.".into(),
+    ))
+}
+
+#[tauri::command]
+pub async fn get_leetcode_editor_code(webview_label: String, app: AppHandle) -> AppResult<String> {
+    let webview = leetcode_webview(&app, &webview_label)?;
+    ensure_leetcode_page(&webview)?;
     let script = r#"(()=>{try{const models=window.monaco?.editor?.getModels?.()||[];const values=models.map(m=>m.getValue?.()||'').filter(Boolean);if(values.length)return values.sort((a,b)=>b.length-a.length)[0];const textareas=[...document.querySelectorAll('.monaco-editor textarea, textarea[data-mode-id], textarea')];const candidate=textareas.map(x=>x.value||'').filter(x=>x.trim().length>20).sort((a,b)=>b.length-a.length)[0];return candidate||''}catch(e){return ''}})()"#;
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
     webview
@@ -1184,9 +1192,16 @@ pub fn set_leetcode_webview_bounds(
     width: f64,
     height: f64,
 ) -> AppResult<()> {
-    let webview = app
-        .get_webview(&webview_label)
-        .ok_or_else(|| AppError::Message("The LeetCode workspace is not ready yet.".into()))?;
+    if !x.is_finite()
+        || !y.is_finite()
+        || !width.is_finite()
+        || !height.is_finite()
+        || width < 1.0
+        || height < 1.0
+    {
+        return Err(AppError::Message("Invalid workspace bounds".into()));
+    }
+    let webview = leetcode_webview(&app, &webview_label)?;
     webview
         .set_bounds(tauri::Rect {
             position: tauri::LogicalPosition::new(x, y).into(),
@@ -1200,6 +1215,11 @@ pub async fn ask_qwen(prompt: String, on_token: Channel<String>) -> AppResult<()
     let prompt = prompt.trim();
     if prompt.is_empty() {
         return Err(AppError::Message("Type a question after @qwen".into()));
+    }
+    if prompt.len() > 100_000 {
+        return Err(AppError::Message(
+            "That Qwen request is too large. Keep it under 100 KB.".into(),
+        ));
     }
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
