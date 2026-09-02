@@ -135,3 +135,14 @@ export interface CreateBookInput {
   description: string
   accent: string
 }
+
+export interface ImportBookProblemsInput {
+  urls: string[]
+  category: string
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+}
+
+export interface ImportBookProblemsResult {
+  added: number
+  alreadyPresent: number
+}

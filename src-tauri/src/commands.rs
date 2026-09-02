@@ -421,6 +421,21 @@ mod domain_tests {
     }
 
     #[test]
+    fn leetcode_problem_imports_are_normalized() {
+        assert_eq!(
+            problem_slug("https://leetcode.com/problems/network-delay-time/?envType=study-plan")
+                .unwrap(),
+            "network-delay-time"
+        );
+        assert_eq!(
+            problem_slug("https://www.leetcode.com/problems/two-sum/#description").unwrap(),
+            "two-sum"
+        );
+        assert!(problem_slug("https://example.com/problems/two-sum/").is_err());
+        assert_eq!(title_from_slug("network-delay-time"), "Network Delay Time");
+    }
+
+    #[test]
     fn reflection_input_is_validated() {
         let valid = FinishAttemptInput {
             attempt_id: 1,
@@ -808,13 +823,13 @@ pub fn set_today_plan_item(
     }
     let conn = db.0.lock().unwrap();
     let exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM problems WHERE id=? AND is_curriculum=1)",
+        "SELECT EXISTS(SELECT 1 FROM problems WHERE id=?)",
         [&problem_id],
         |r| r.get(0),
     )?;
     if !exists {
         return Err(AppError::Message(
-            "Problem is not in the active curriculum".into(),
+            "Problem does not exist in your library".into(),
         ));
     }
     conn.execute("INSERT INTO daily_plan(date,kind,problem_id) VALUES(?,?,?) ON CONFLICT(date,kind) DO UPDATE SET problem_id=excluded.problem_id",params![Local::now().date_naive().to_string(),kind,problem_id])?;
@@ -849,12 +864,64 @@ pub fn get_problem_library(db: State<Db>) -> AppResult<Vec<ProblemBook>> {
     Ok(books)
 }
 
+const BOOK_ACCENTS: [&str; 5] = ["forest", "sage", "clay", "navy", "plum"];
+
+fn validate_book_input(input: &CreateBookInput) -> AppResult<()> {
+    if input.title.trim().is_empty() || input.title.trim().chars().count() > 80 {
+        return Err(AppError::Message(
+            "Book title must be between 1 and 80 characters".into(),
+        ));
+    }
+    if input.subtitle.trim().chars().count() > 120 || input.description.trim().chars().count() > 600
+    {
+        return Err(AppError::Message("Book description is too long".into()));
+    }
+    if !BOOK_ACCENTS.contains(&input.accent.as_str()) {
+        return Err(AppError::Message("Choose a supported book cover".into()));
+    }
+    Ok(())
+}
+
+fn problem_slug(raw_url: &str) -> AppResult<String> {
+    let without_fragment = raw_url.trim().split(['?', '#']).next().unwrap_or_default();
+    let path = without_fragment
+        .strip_prefix("https://leetcode.com/problems/")
+        .or_else(|| without_fragment.strip_prefix("https://www.leetcode.com/problems/"))
+        .ok_or_else(|| {
+            AppError::Message("Every imported URL must be a secure LeetCode problem URL".into())
+        })?;
+    let slug = path.split('/').next().unwrap_or_default();
+    if slug.is_empty()
+        || slug.len() > 120
+        || !slug
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '-')
+    {
+        return Err(AppError::Message(
+            "A LeetCode problem URL contains an invalid slug".into(),
+        ));
+    }
+    Ok(slug.to_string())
+}
+
+fn title_from_slug(slug: &str) -> String {
+    slug.split('-')
+        .filter(|word| !word.is_empty())
+        .map(|word| {
+            let mut characters = word.chars();
+            characters
+                .next()
+                .map(|first| first.to_ascii_uppercase().to_string() + characters.as_str())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[tauri::command]
 pub fn create_problem_book(input: CreateBookInput, db: State<Db>) -> AppResult<ProblemBook> {
+    validate_book_input(&input)?;
     let title = input.title.trim();
-    if title.is_empty() {
-        return Err(AppError::Message("Book title cannot be empty".into()));
-    }
     let id = format!("custom-{}", Utc::now().timestamp_millis());
     let conn = db.0.lock().unwrap();
     let order: i32 = conn.query_row(
@@ -874,6 +941,135 @@ pub fn create_problem_book(input: CreateBookInput, db: State<Db>) -> AppResult<P
         solved_count: 0,
         built_in: false,
     })
+}
+
+#[tauri::command]
+pub fn update_problem_book(
+    book_id: String,
+    input: CreateBookInput,
+    db: State<Db>,
+) -> AppResult<()> {
+    validate_book_input(&input)?;
+    let updated = db.0.lock().unwrap().execute(
+        "UPDATE problem_books SET title=?,subtitle=?,description=?,accent=? WHERE id=? AND built_in=0",
+        params![
+            input.title.trim(),
+            input.subtitle.trim(),
+            input.description.trim(),
+            input.accent,
+            book_id
+        ],
+    )?;
+    if updated != 1 {
+        return Err(AppError::Message(
+            "Built-in or missing books cannot be edited".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn import_book_problems(
+    book_id: String,
+    input: ImportBookProblemsInput,
+    db: State<Db>,
+) -> AppResult<ImportBookProblemsResult> {
+    let category = input.category.trim();
+    if category.is_empty() || category.chars().count() > 60 {
+        return Err(AppError::Message(
+            "Choose a topic between 1 and 60 characters".into(),
+        ));
+    }
+    if !matches!(input.difficulty.as_str(), "Easy" | "Medium" | "Hard") {
+        return Err(AppError::Message("Choose Easy, Medium, or Hard".into()));
+    }
+    if input.urls.is_empty() || input.urls.len() > 200 {
+        return Err(AppError::Message(
+            "Import between 1 and 200 problem URLs at a time".into(),
+        ));
+    }
+    let mut slugs = Vec::with_capacity(input.urls.len());
+    for url in input.urls {
+        let slug = problem_slug(&url)?;
+        if !slugs.contains(&slug) {
+            slugs.push(slug);
+        }
+    }
+    let mut conn = db.0.lock().unwrap();
+    let tx = conn.transaction()?;
+    let custom_book: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM problem_books WHERE id=? AND built_in=0)",
+        [&book_id],
+        |row| row.get(0),
+    )?;
+    if !custom_book {
+        return Err(AppError::Message(
+            "Problems can only be imported into personal books".into(),
+        ));
+    }
+    let next_problem_order: i32 = tx.query_row(
+        "SELECT COALESCE(MAX(order_index),0)+1 FROM problems",
+        [],
+        |row| row.get(0),
+    )?;
+    let mut next_book_order: i32 = tx.query_row(
+        "SELECT COALESCE(MAX(order_index),0)+1 FROM problem_book_items WHERE book_id=?",
+        [&book_id],
+        |row| row.get(0),
+    )?;
+    let mut added = 0;
+    let mut already_present = 0;
+    for (offset, slug) in slugs.into_iter().enumerate() {
+        let title = title_from_slug(&slug);
+        let leetcode_url = format!("https://leetcode.com/problems/{slug}/");
+        tx.execute(
+            "INSERT OR IGNORE INTO problems(id,title,category,difficulty,leetcode_url,neetcode_url,order_index,category_order,is_curriculum) VALUES(?,?,?,?,?,NULL,?,0,0)",
+            params![slug,title,category,input.difficulty,leetcode_url,next_problem_order + offset as i32],
+        )?;
+        let inserted = tx.execute(
+            "INSERT OR IGNORE INTO problem_book_items(book_id,problem_id,order_index) VALUES(?,?,?)",
+            params![book_id,slug,next_book_order],
+        )?;
+        if inserted == 1 {
+            added += 1;
+            next_book_order += 1;
+        } else {
+            already_present += 1;
+        }
+    }
+    tx.commit()?;
+    Ok(ImportBookProblemsResult {
+        added,
+        already_present,
+    })
+}
+
+#[tauri::command]
+pub fn remove_book_problem(book_id: String, problem_id: String, db: State<Db>) -> AppResult<()> {
+    let removed = db.0.lock().unwrap().execute(
+        "DELETE FROM problem_book_items WHERE book_id=? AND problem_id=? AND EXISTS(SELECT 1 FROM problem_books WHERE id=? AND built_in=0)",
+        params![book_id,problem_id,book_id],
+    )?;
+    if removed != 1 {
+        return Err(AppError::Message(
+            "This problem is not in an editable personal book".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_problem_book(book_id: String, db: State<Db>) -> AppResult<()> {
+    let deleted = db.0.lock().unwrap().execute(
+        "DELETE FROM problem_books WHERE id=? AND built_in=0",
+        [&book_id],
+    )?;
+    if deleted != 1 {
+        return Err(AppError::Message(
+            "Built-in or missing books cannot be deleted".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[tauri::command]

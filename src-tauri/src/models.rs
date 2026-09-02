@@ -191,3 +191,18 @@ pub struct CreateBookInput {
     pub description: String,
     pub accent: String,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportBookProblemsInput {
+    pub urls: Vec<String>,
+    pub category: String,
+    pub difficulty: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportBookProblemsResult {
+    pub added: usize,
+    pub already_present: usize,
+}
