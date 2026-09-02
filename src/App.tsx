@@ -1,78 +1,182 @@
-import {useEffect,useMemo,useRef,useState} from 'react'
-import {listen} from '@tauri-apps/api/event'
-import {BookOpen,CalendarDays,Check,ChevronRight,Clock3,ExternalLink,FileText,Flame,Home,Leaf,Lightbulb,ListChecks,LoaderCircle,PanelLeftClose,PanelLeftOpen,PanelRightClose,PanelRightOpen,Pause,Play,Search,Settings as SettingsIcon,Sprout,X} from 'lucide-react'
-import {api,type AppSettings,type Dashboard,type FinishAttemptInput,type FocusContext,type JournalEntry,type Problem,type ProblemBook,type ProblemOverview} from './api'
-import {GardenFocus,GardenPage,gardenStageName} from './Garden'
-import {closeLeetCodeWorkspace,LeetCodeWorkspace} from './LeetCodeWorkspace'
-import {Card,Chip,PageHeader} from './components/ui'
-import {JournalPage} from './pages/JournalPage'
-import {ReviewsPage} from './pages/ReviewsPage'
-import {useAppData} from './hooks/useAppData'
+import { useEffect, useMemo, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { LoaderCircle } from 'lucide-react'
+import { api } from './api'
+import type { FinishAttemptInput, Problem } from './domain'
+import type { Page } from './app/page'
+import { GardenFocus, GardenPage, gardenStageName } from './Garden'
+import { closeLeetCodeWorkspace, LeetCodeWorkspace } from './LeetCodeWorkspace'
+import { ConfirmLeave } from './components/ConfirmLeave'
+import { ReflectionDialog } from './components/ReflectionDialog'
+import { Sidebar } from './components/Sidebar'
+import { useAppData } from './hooks/useAppData'
+import { FocusPage } from './pages/FocusPage'
+import { JournalPage } from './pages/JournalPage'
+import { LibraryPage } from './pages/LibraryPage'
+import { ReviewsPage } from './pages/ReviewsPage'
+import { SettingsPage } from './pages/SettingsPage'
+import { TodayPage } from './pages/TodayPage'
 
-type Page='today'|'focus'|'garden-focus'|'problems'|'journal'|'reviews'|'garden'|'settings'
-const nav=[['today',Home,'Today'],['focus',Clock3,'Focus'],['problems',ListChecks,'Library'],['journal',BookOpen,'Journal'],['reviews',CalendarDays,'Reviews'],['garden',Sprout,'Garden'],['settings',SettingsIcon,'Settings']] as const
-const Header=({title,sub}:{title:string,sub:string})=><PageHeader title={title} subtitle={sub}/>
-function Plant({large=false,animate=true}:{large?:boolean,animate?:boolean}){return <div className={`${large?'plant large':'plant'} ${animate?'animate':''}`}><div className="stem"/><i className="leaf a"/><i className="leaf b"/><i className="leaf c"/><div className="pot"><span>• ˚ •</span></div><div className="soil"/></div>}
-function Sidebar({page,name,setPage,collapsed,onToggle,hidden}:{page:Page,name:string,setPage:(p:Page)=>void,collapsed:boolean,onToggle:()=>void,hidden:boolean}){return <aside className="sidebar" aria-hidden={hidden} inert={hidden}><div className="logo"><span>LeetJournal</span><button className="sidebar-toggle" onClick={onToggle} title={collapsed?'Expand sidebar':'Collapse sidebar'} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>{collapsed?<PanelLeftOpen size={16}/>:<PanelLeftClose size={16}/>}</button></div><nav>{nav.map(([id,Icon,label])=><button key={id} className={page===id?'active':''} onClick={()=>setPage(id)} title={collapsed?label:undefined}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="profile"><span className="avatar">🌱</span><div><strong>{name}</strong><small>Keep growing</small></div></div></aside>}
+export default function App() {
+  const { dashboard, garden, focus, entries, reviews, books, settings, loading, error,
+    reload, setFocus, setGarden, setSettings } = useAppData()
+  const [page, setPage] = useState<Page>('today')
+  const [logging, setLogging] = useState(false)
+  const [reflectionNotes, setReflectionNotes] = useState('')
+  const [toast, setToast] = useState('')
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const [focusReturn, setFocusReturn] = useState<Page>('today')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('leetjournal.sidebar.collapsed') === 'true',
+  )
 
-function Today({data,settings,active,onStart,onResume,onReviews}:{data:Dashboard,settings:AppSettings,active:FocusContext|null,onStart:(p:Problem,isReview:boolean)=>void,onResume:()=>void,onReviews:()=>void}){
- const {plan}=data,main=plan.items.find(x=>x.kind==='Main problem')??plan.items[0],keyFor=(kind:string,id:string)=>`${kind}:${id}`,[selectedKey,setSelectedKey]=useState(main?keyFor(main.kind,main.problem.id):''),hour=new Date().getHours(),greeting=hour<12?'Good morning':hour<18?'Good afternoon':'Good evening',progress=(plan.xp-data.levelFloorXp)/Math.max(1,data.nextLevelXp-data.levelFloorXp)*100
- const selected=plan.items.find(x=>keyFor(x.kind,x.problem.id)===selectedKey)??main
- useEffect(()=>{if(selectedKey&&!plan.items.some(x=>keyFor(x.kind,x.problem.id)===selectedKey))setSelectedKey(main?keyFor(main.kind,main.problem.id):'')},[plan.items,selectedKey,main?.kind,main?.problem.id])
- return <div className="page"><header className="greeting"><div><h1>{greeting}, {settings.displayName} <span>{hour<18?'☀':'☾'}</span></h1><p>Let’s make today a focused step forward.</p></div><Card className="streak-card"><Flame/><div><b>{plan.streak}</b><small>day streak</small></div><div className="week">{['M','T','W','T','F','S','S'].map((d,i)=><span key={i}><small>{d}</small><i className={data.week[i]?'done':''}/></span>)}</div></Card></header><div className="today-grid"><Card className="plan-card"><div className="card-title"><h3>Today’s Plan</h3><small>Select a problem</small></div><div className="timeline">{plan.items.map((item,i)=>{const itemKey=keyFor(item.kind,item.problem.id),isSelected=selectedKey===itemKey;return <button type="button" className={`plan-row ${isSelected?'selected':''}`} aria-pressed={isSelected} onClick={()=>setSelectedKey(itemKey)} onDoubleClick={()=>onStart(item.problem,item.kind==='Review')} key={itemKey}><span className="dot"/><div><small>{item.kind}</small><strong>{item.problem.title}</strong><p>{item.problem.category} · ~ {item.estimatedMinutes} min</p></div><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip>{i<plan.items.length-1&&<span className="line"/>}</button>})}</div></Card><Card className="garden"><div><h3>Your Garden</h3><p>Level {data.levelNumber} · {plan.level}</p><div className="xp"><span style={{width:`${Math.max(0,Math.min(progress,100))}%`}}/></div><small>{plan.xp} / {data.nextLevelXp} XP</small><em>{data.practicedCount} of {data.problemCount} curriculum problems practiced</em></div><Plant large animate={settings.plantAnimations}/></Card><Card className="review-card"><div className="card-title"><h3>Review Due ({plan.reviewsDue})</h3><button onClick={onReviews}>See all</button></div>{data.dueReviews.length?data.dueReviews.map(r=><div className="mini-problem" key={r.problem.id}><span>{r.problem.title}</span><Chip tone={r.problem.difficulty.toLowerCase()}>{r.problem.difficulty}</Chip></div>):<p className="muted-copy">Nothing due today. Your next reviews will appear here.</p>}</Card><div className={`start-row ${active?'active-session':''}`}>{active?<button className="primary" onClick={onResume}><Play className="start-play" size={18} fill="currentColor"/><span><b>{active.attempt.pausedAt?'Resume focus session':'Return to focus session'}</b><small>{active.attempt.problem.title}</small></span><ChevronRight className="start-arrow" size={18}/></button>:<button className="primary" disabled={!selected} onClick={()=>selected&&onStart(selected.problem,selected.kind==='Review')}><Play size={18} fill="currentColor"/>Start focus session</button>}</div></div></div>
+  useEffect(() => {
+    const enabled = Boolean(focus && ['focus', 'garden-focus'].includes(page) && !logging)
+    api.setFocusShortcutEnabled(enabled).catch(() => {})
+  }, [focus, page, logging])
+
+  useEffect(() => {
+    let disposed = false
+    let unlisten: (() => void) | undefined
+    listen('focus-escape', () => {
+      if (logging || !focus || !['focus', 'garden-focus'].includes(page)) return
+      setConfirmLeave((open) => !open)
+    }).then((stop) => {
+      if (disposed) stop()
+      else unlisten = stop
+    })
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [focus, page, logging])
+
+  const reportActionError = (actionError: unknown) =>
+    setToast(String(actionError).replace(/^Error:\s*/, ''))
+
+  const pause = async () => {
+    if (!focus) return
+    try {
+      await api.pause(focus.attempt.id)
+      setFocus(await api.focusContext())
+    } catch (actionError) { reportActionError(actionError) }
+  }
+
+  const pauseAndExit = async () => {
+    if (!focus) return
+    try {
+      await api.pauseOnly(focus.attempt.id)
+      setFocus(await api.focusContext())
+      setConfirmLeave(false)
+      setPage(focusReturn)
+    } catch (actionError) { reportActionError(actionError) }
+  }
+
+  const endSession = async () => {
+    if (!focus) return
+    try {
+      await api.abandon(focus.attempt.id)
+      await closeLeetCodeWorkspace()
+      setConfirmLeave(false)
+      setFocus(null)
+      setToast('Session ended')
+      await reload()
+      setPage(focusReturn)
+    } catch (actionError) { reportActionError(actionError) }
+  }
+
+  const start = async (problem: Problem, isReview = false, fromGarden = false) => {
+    const returnPage: Page = fromGarden ? 'garden'
+      : page === 'reviews' ? 'reviews'
+        : page === 'problems' ? 'problems'
+          : page === 'journal' ? 'journal' : 'today'
+    setFocusReturn(returnPage)
+    try {
+      const active = focus ?? await api.focusContext()
+      if (active) {
+        setFocus(active)
+        if (active.attempt.problem.id !== problem.id) {
+          setToast(`${active.attempt.problem.title} is still active · resume or end it before starting another problem`)
+        }
+        setPage(fromGarden ? 'garden-focus' : 'focus')
+        return
+      }
+      await api.start(problem.id, isReview)
+      setFocus(await api.focusContext())
+      setPage(fromGarden ? 'garden-focus' : 'focus')
+    } catch (actionError) { reportActionError(actionError) }
+  }
+
+  const beginReflection = async (notes?: string) => {
+    if (!focus) return
+    if (notes !== undefined) {
+      setReflectionNotes(notes)
+      setLogging(true)
+      return
+    }
+    try {
+      const current = await api.focusContext()
+      if (!current) return
+      setFocus(current)
+      setReflectionNotes(current.attempt.notes)
+      setLogging(true)
+    } catch (actionError) { reportActionError(actionError) }
+  }
+
+  const finish = async (input: Omit<FinishAttemptInput, 'attemptId'>) => {
+    if (!focus) return
+    try {
+      const previousStage = garden?.currentStage
+      await api.finish({ attemptId: focus.attempt.id, ...input })
+      await closeLeetCodeWorkspace()
+      const nextGarden = await api.garden()
+      setGarden(nextGarden)
+      setLogging(false)
+      setReflectionNotes('')
+      await reload()
+      if (previousStage && previousStage !== nextGarden.currentStage) {
+        setPage('garden')
+        setToast(`The ${gardenStageName(previousStage)} has grown into a ${gardenStageName(nextGarden.currentStage)}.`)
+      } else {
+        setPage('journal')
+        setToast('Journal entry saved · the garden feels a little livelier')
+      }
+    } catch (actionError) {
+      reportActionError(actionError)
+      throw actionError
+    }
+  }
+
+  const content = useMemo(() => {
+    if (loading) return <div className="loading"><LoaderCircle /><p>Opening your journal…</p></div>
+    if (error || !dashboard || !garden || !settings) {
+      return <div className="error-state"><h2>LeetJournal couldn’t open</h2><p>{error}</p><button className="primary" onClick={reload}>Try again</button></div>
+    }
+    if (page === 'today') return <TodayPage data={dashboard} settings={settings} active={focus} onStart={(problem, isReview) => start(problem, isReview)} onResume={() => { setFocusReturn('today'); setPage('focus') }} onReviews={() => setPage('reviews')} />
+    if (page === 'garden') return <GardenPage state={garden} active={focus} animate={settings.plantAnimations} onStart={(problem) => start(problem, false, true)} onReturn={() => setPage('garden-focus')} onReviews={() => setPage('reviews')} />
+    if (page === 'garden-focus') return <GardenFocus context={focus} garden={garden} animate={settings.plantAnimations} onPause={pause} onWorkspace={() => setPage('focus')} onFinish={() => void beginReflection()} />
+    if (page === 'focus') return <FocusPage context={focus} settings={settings} obscured={logging || confirmLeave} onPause={pause} onFinish={(notes) => void beginReflection(notes)} onBack={() => setPage('today')} />
+    if (page === 'problems') return <LibraryPage books={books} entries={entries} onStart={(problem) => start(problem)} onReload={reload} onSetToday={async (kind, problem) => { await api.setTodayItem(kind, problem.id); await reload(); setToast(`${problem.title} set as today’s ${kind.toLowerCase()}`) }} />
+    if (page === 'journal') return <JournalPage entries={entries} onStart={(problem) => start(problem)} />
+    if (page === 'reviews') return <ReviewsPage reviews={reviews} onStart={(problem) => start(problem, true)} />
+    return <SettingsPage settings={settings} onSave={async (nextSettings) => { setSettings(await api.saveSettings(nextSettings)); await reload(); setToast('Settings saved') }} />
+  }, [page, dashboard, garden, focus, entries, reviews, books, settings, loading, error, logging, confirmLeave])
+
+  const toggleSidebar = () => setSidebarCollapsed((current) => {
+    const next = !current
+    localStorage.setItem('leetjournal.sidebar.collapsed', String(next))
+    return next
+  })
+  const focusMode = page === 'focus' || page === 'garden-focus'
+
+  return (
+    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${focusMode ? 'focus-mode' : ''} ${page === 'garden' ? 'garden-shell' : ''} theme-${settings?.theme ?? 'warm-garden'}`}>
+      <Sidebar page={page} name={settings?.displayName ?? 'Coder'} onNavigate={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} hidden={focusMode} />
+      <main>{content}</main>
+      {focus && page !== 'focus' && <div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden /></div>}
+      {confirmLeave && focus && <ConfirmLeave problem={focus.attempt.problem.title} onStay={() => setConfirmLeave(false)} onPauseExit={pauseAndExit} onEnd={endSession} />}
+      {logging && focus && <ReflectionDialog context={focus} initialNotes={reflectionNotes} onSave={finish} onCancel={() => { setLogging(false); setReflectionNotes('') }} />}
+      {toast && <button className="toast" onClick={() => setToast('')}>{toast}</button>}
+    </div>
+  )
 }
-
-
-function FocusPage({context,settings,onPause,onFinish,onBack,obscured=false}:{context:FocusContext|null,settings:AppSettings,onPause:()=>void,onFinish:(notes:string)=>void,onBack:()=>void,obscured?:boolean}){
- const [now,setNow]=useState(Date.now()),[notes,setNotes]=useState(context?.attempt.notes??''),[revealed,setRevealed]=useState(0),[qwenRunning,setQwenRunning]=useState(false),[lastQwenBlock,setLastQwenBlock]=useState(''),[noteSaveFailed,setNoteSaveFailed]=useState(false),[toolsOpen,setToolsOpen]=useState(()=>localStorage.getItem('leetjournal.focus.tools')!=='closed'),[activeTool,setActiveTool]=useState<'notes'|'hints'>('notes'),[webviewLabel,setWebviewLabel]=useState('')
- const notesRef=useRef(notes),saveChainRef=useRef<Promise<void>>(Promise.resolve())
- const saveNotes=(attemptId:number,value:string)=>{saveChainRef.current=saveChainRef.current.catch(()=>{}).then(()=>api.notes(attemptId,value)).then(()=>setNoteSaveFailed(false)).catch(()=>setNoteSaveFailed(true));return saveChainRef.current}
- useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t)},[])
- useEffect(()=>{setNotes(context?.attempt.notes??'');setLastQwenBlock('');setNoteSaveFailed(false)},[context?.attempt.id])
- useEffect(()=>{notesRef.current=notes},[notes])
- useEffect(()=>{if(!context)return;const t=setTimeout(()=>{void saveNotes(context.attempt.id,notes)},500);return()=>clearTimeout(t)},[notes,context?.attempt.id])
- useEffect(()=>{if(!context)return;const attemptId=context.attempt.id;return()=>{void saveNotes(attemptId,notesRef.current)}},[context?.attempt.id])
- if(!context)return <Empty title="No active session" text="Choose a problem from Today or Reviews to begin." action={onBack}/>
- const a=context.attempt,started=new Date(a.startedAt).getTime(),pauseExtra=a.pausedAt?now-new Date(a.pausedAt).getTime():0,seconds=Math.max(0,Math.floor((now-started-pauseExtra)/1000)-a.pausedSeconds),time=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`,percent=Math.min(Math.round(seconds/(context.targetMinutes*60)*100),100)
- const toggleTools=()=>setToolsOpen(value=>{const next=!value;localStorage.setItem('leetjournal.focus.tools',next?'open':'closed');return next})
- const runQwen=async()=>{const line=notes.slice(notes.lastIndexOf('\n')+1).trim(),match=line.match(/^@(big-)?qwen\s+(.+)$/i);if(!match||qwenRunning)return;setQwenRunning(true);setLastQwenBlock('');try{let prompt=match[2].trim();if(match[1]){if(!webviewLabel)throw new Error('The LeetCode editor is still loading. Try @big-qwen again in a moment.');const code=await api.leetcodeEditorCode(webviewLabel);if(!code.trim())throw new Error('LeetJournal could not read the current editor code. Click inside the LeetCode editor, then try @big-qwen again.');const beforeCommand=notes.slice(0,notes.lastIndexOf('\n')+1).trim();prompt=`You are a concise coding coach helping with the current LeetCode problem. Use the supplied context, but do not reveal a complete solution unless the user explicitly asks for one.\n\nProblem: ${a.problem.title}\nCategory: ${a.problem.category}\nDifficulty: ${a.problem.difficulty}\nURL: ${a.problem.leetcodeUrl}\n\nSession notes:\n${beforeCommand||'(none)'}\n\nCurrent editor code:\n--- CODE START ---\n${code.slice(0,24000)}\n--- CODE END ---\n\nQuestion: ${match[2].trim()}`;}let block='\n\nQwen: ';setNotes(value=>value+block);await api.askQwen(prompt,token=>{block+=token;setNotes(value=>value+token)});block+='\n';setNotes(value=>value+'\n');setLastQwenBlock(block)}catch(e){const block=`\n\n[Qwen: ${String(e).replace(/^Error:\s*/,"")}]\n`;setNotes(value=>value+block);setLastQwenBlock(block)}finally{setQwenRunning(false)}}
- const canClearQwen=Boolean(lastQwenBlock&&notes.includes(lastQwenBlock))
- const clearQwenOutput=()=>setNotes(value=>{const start=value.lastIndexOf(lastQwenBlock);return start<0?value:`${value.slice(0,start)}${value.slice(start+lastQwenBlock.length)}`.trimEnd()})
- return <div className="focus-workspace"><div className={`workspace-body ${toolsOpen?'':'tools-collapsed'}`}><LeetCodeWorkspace url={a.problem.leetcodeUrl} hidden={obscured} onReadyLabel={setWebviewLabel}/><aside className="workspace-side"><div className="session-dock"><div className="workspace-clock"><span className={a.pausedAt?'paused':''}>{a.pausedAt?'Paused':'Focus'}</span><b>{time}</b><button onClick={onPause} aria-label={a.pausedAt?'Resume timer':'Pause timer'}>{a.pausedAt?<Play size={15}/>:<Pause size={15}/>}</button></div><button className="tools-toggle" onClick={toggleTools} title={toolsOpen?'Hide study tools':'Show study tools'} aria-label={toolsOpen?'Hide study tools':'Show study tools'}>{toolsOpen?<PanelRightClose size={16}/>:<PanelRightOpen size={16}/>}</button><a className="external-link" href={a.problem.leetcodeUrl} target="_blank" rel="noreferrer" title="Open in external browser"><ExternalLink size={16}/></a></div><section className="focus-progress"><div><span><Leaf size={13}/>Focus goal</span><b>{percent}%</b></div><div className="focus-progress-track"><i style={{width:`${percent}%`}}/></div><small>{Math.max(0,context.targetMinutes-Math.floor(seconds/60))} minutes remaining</small></section><nav className="tool-tabs two" aria-label="Study tools"><button className={activeTool==='notes'?'active':''} onClick={()=>setActiveTool('notes')}><FileText size={14}/>Notes</button><button className={activeTool==='hints'?'active':''} onClick={()=>setActiveTool('hints')}><Lightbulb size={14}/>Hints{revealed>0&&<i>{revealed}</i>}</button></nav><div className="tool-panel">{activeTool==='notes'&&<section className="focus-notes"><div className="notes-head"><h3>Session notes</h3><div className="notes-actions">{qwenRunning&&<span><LoaderCircle size={11}/>Responding</span>}{noteSaveFailed&&<button type="button" onClick={()=>void saveNotes(a.id,notes)}>Retry save</button>}{!qwenRunning&&canClearQwen&&<button type="button" onClick={clearQwenOutput}>Clear response</button>}</div></div><textarea value={notes} readOnly={qwenRunning} onChange={e=>setNotes(e.target.value)} onKeyDown={e=>{const line=e.currentTarget.value.slice(e.currentTarget.value.lastIndexOf('\n')+1).trim();if(e.key==='Enter'&&!e.shiftKey&&e.currentTarget.selectionStart===e.currentTarget.value.length&&/^@(big-)?qwen\s+.+/i.test(line)){e.preventDefault();runQwen()}}} placeholder="Write notes, ask @qwen, or use @big-qwen with problem + code context…"/><div className="qwen-commands"><span><b>@qwen</b> general question</span><span><b>@big-qwen</b> problem + notes + live code</span></div></section>}{activeTool==='hints'&&<section className="hints-panel"><header><h3>{settings.progressiveHints?'Progressive hints':'Hints'}</h3><p>{settings.progressiveHints?'Reveal only what you need.':'Reveal the full hint set when you need it.'} The first hint is suggested after {settings.hintDelayMinutes} minutes.</p></header>{context.hints.slice(0,revealed).map((h,i)=><div className="revealed-hint" key={h}><b>{i+1}</b><span>{h}</span></div>)}{revealed<context.hints.length?<button className="hint-button" onClick={()=>setRevealed(x=>settings.progressiveHints?x+1:context.hints.length)}>{settings.progressiveHints?`Reveal hint ${revealed+1}`:'Reveal all hints'}</button>:<p className="all-hints">All hints revealed.</p>}</section>}</div><button className="primary finish" onClick={()=>onFinish(notes)}><Check size={17}/>Finish & reflect</button></aside></div></div>
-}
-const outcomes=['Easy','Solved','Struggled','Needed hint',"Couldn't solve"],mistakes=['Pattern recognition','Implementation','Edge case','Overcomplicated','Off-by-one','Complexity','Data structure','Other']
-function LogEntry({context,initialNotes,onSave,onCancel}:{context:FocusContext,initialNotes:string,onSave:(x:{outcome:string,confidence:number,notes:string,mistakes:string[]})=>Promise<void>,onCancel:()=>void}){const [outcome,setOutcome]=useState('Solved'),[confidence,setConfidence]=useState(4),[notes,setNotes]=useState(initialNotes),[selected,setSelected]=useState<string[]>([]),[saving,setSaving]=useState(false);const save=async()=>{if(saving)return;setSaving(true);try{await onSave({outcome,confidence,notes,mistakes:selected})}finally{setSaving(false)}};return <div className="modal-backdrop"><div className="log-modal"><button className="modal-close" disabled={saving} onClick={onCancel}><X/></button><span className="eyebrow">Log entry · {context.attempt.problem.title}</span><h2>How did it go?</h2><div className="outcomes">{outcomes.map((x,i)=><button disabled={saving} className={outcome===x?'selected':''} onClick={()=>setOutcome(x)} key={x}><span>{['😊','😌','😓','🤔','😵'][i]}</span>{x}</button>)}</div><h3>What tripped you up? <small>(Select all that apply)</small></h3><div className="tags">{mistakes.map(x=><button disabled={saving} className={selected.includes(x)?'selected':''} onClick={()=>setSelected(s=>s.includes(x)?s.filter(y=>y!==x):[...s,x])} key={x}>{x}</button>)}</div><h3>Confidence</h3><div className="confidence">{[1,2,3,4,5].map(n=><button disabled={saving} className={confidence===n?'selected':''} onClick={()=>setConfidence(n)} key={n}>{n}</button>)}</div><h3>What did I learn?</h3><textarea disabled={saving} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Write your key takeaways, patterns, or anything you want to remember…"/><button className="primary save" disabled={saving} onClick={save}>{saving?'Saving…':'Save entry'}</button></div></div>}
-
-function ProblemLibrary({books,entries,onStart,onSetToday,onReload}:{books:ProblemBook[],entries:JournalEntry[],onStart:(p:Problem)=>void,onSetToday:(kind:'Warm-up'|'Main problem',p:Problem)=>void,onReload:()=>void}){
- const [openBook,setOpenBook]=useState<ProblemBook|null>(null),[items,setItems]=useState<ProblemOverview[]>([]),[adding,setAdding]=useState(false),[title,setTitle]=useState(''),[subtitle,setSubtitle]=useState(''),[description,setDescription]=useState(''),[accent,setAccent]=useState('sage')
- const open=async(book:ProblemBook)=>{setOpenBook(book);setItems(await api.bookProblems(book.id))}
- if(openBook){return <div className="book-reader-shell"><button className="back shelf-back" onClick={()=>setOpenBook(null)}>‹ <span>Back to library</span></button>{items.length?<Problems items={items} entries={entries} onStart={onStart} onSetToday={onSetToday}/>:<div className="page empty-book"><div className={`empty-book-cover ${openBook.accent}`}><BookOpen/></div><h1>{openBook.title}</h1><p>This book is waiting for its first problem list.</p><button className="primary" onClick={()=>setOpenBook(null)}>Return to library</button></div>}</div>}
- const practiced=books.reduce((n,b)=>n+b.practicedCount,0),total=books.reduce((n,b)=>n+b.problemCount,0)
- return <div className="page library-page"><header className="library-hero"><div><span className="eyebrow">Your study library</span><h1>Problem Books</h1><p>Curated paths through the problems worth remembering.</p></div><div className="library-totals"><b>{books.length}</b><span>books</span><b>{practiced}</b><span>practiced</span><b>{total}</b><span>problems</span></div></header><div className="shelf-label"><h2>My Library</h2><button onClick={()=>setAdding(true)}>+ Add book</button></div><div className="book-shelf">{books.map(book=><button className="book-card" key={book.id} onClick={()=>open(book)}><div className={`book-cover ${book.accent}`}><div className="book-spine"/><Sprout/><small>{book.builtIn?'CURATED COLLECTION':'PERSONAL COLLECTION'}</small><h3>{book.title}</h3><p>{book.subtitle}</p><span>LeetJournal</span></div><div className="book-info"><h3>{book.title}</h3><p>{book.description}</p><div><span>{book.problemCount} problems</span><span>{book.practicedCount} practiced</span></div><div className="xp"><span style={{width:`${book.problemCount?book.practicedCount/book.problemCount*100:0}%`}}/></div></div></button>)}<button className="add-book-card" onClick={()=>setAdding(true)}><span>+</span><b>Add another book</b><small>Create a home for a new problem list</small></button></div><div className="shelf-edge"/>{adding&&<div className="modal-backdrop"><div className="add-book-modal"><button className="modal-close" onClick={()=>setAdding(false)}><X/></button><span className="eyebrow">New problem book</span><h2>Add to your library</h2><label>Title<input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Blind 75"/></label><label>Subtitle<input value={subtitle} onChange={e=>setSubtitle(e.target.value)} placeholder="A short description for the cover"/></label><label>About this collection<textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="What belongs in this book?"/></label><div className="cover-picker"><span>Cover</span>{['sage','clay','navy','plum'].map(x=><button className={`${x} ${accent===x?'selected':''}`} onClick={()=>setAccent(x)} key={x}/>)}</div><button className="primary" disabled={!title.trim()} onClick={async()=>{await api.createBook({title,subtitle,description,accent});setAdding(false);setTitle('');setSubtitle('');setDescription('');onReload()}}>Create book</button></div></div>}</div>
-}
-
-function Problems({items,entries,onStart,onSetToday}:{items:ProblemOverview[],entries:JournalEntry[],onStart:(p:Problem)=>void,onSetToday:(kind:'Warm-up'|'Main problem',p:Problem)=>void}){
- const [query,setQuery]=useState(''),[difficulty,setDifficulty]=useState('All'),[status,setStatus]=useState('All'),[category,setCategory]=useState('All'),[selected,setSelected]=useState<ProblemOverview|null>(null)
- const categories=[...new Set(items.map(x=>x.problem.category))],visible=items.filter(x=>(category==='All'||x.problem.category===category)&&(difficulty==='All'||x.problem.difficulty===difficulty)&&(status==='All'||x.status===status)&&x.problem.title.toLowerCase().includes(query.toLowerCase())),history=selected?entries.filter(e=>e.problem.id===selected.problem.id):[]
- return <div className="page problems-page"><Header title="NeetCode 150" sub="Browse the curriculum, choose what’s next, and revisit your history."/><div className="curriculum-stats"><b>{items.filter(x=>x.attemptCount>0).length}</b><span>practiced</span><b>{items.filter(x=>x.status==='Solved').length}</b><span>solved</span><b>{items.filter(x=>x.status==='Review Due').length}</b><span>due</span><b>{items.length}</b><span>total</span></div><div className="problem-filters"><label><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search 150 problems…"/></label><select value={category} onChange={e=>setCategory(e.target.value)}><option>All</option>{categories.map(x=><option key={x}>{x}</option>)}</select><select value={difficulty} onChange={e=>setDifficulty(e.target.value)}><option>All</option><option>Easy</option><option>Medium</option><option>Hard</option></select><select value={status} onChange={e=>setStatus(e.target.value)}><option>All</option><option>Unseen</option><option>Attempted</option><option>Solved</option><option>Review Due</option></select></div><div className="curriculum-layout"><aside className="topic-list"><button className={category==='All'?'active':''} onClick={()=>setCategory('All')}>All topics <span>{items.length}</span></button>{categories.map(c=><button className={category===c?'active':''} onClick={()=>setCategory(c)} key={c}>{c}<span>{items.filter(x=>x.problem.category===c).length}</span></button>)}</aside><Card className="problem-table"><div className="problem-table-head"><span>Problem</span><span>Difficulty</span><span>Status</span><span/></div>{visible.map(x=><button className="problem-row" key={x.problem.id} onClick={()=>setSelected(x)}><span><i>{x.problem.orderIndex}</i><span><b>{x.problem.title}</b><small>{x.problem.category}</small></span></span><Chip tone={x.problem.difficulty.toLowerCase()}>{x.problem.difficulty}</Chip><span className={`status status-${x.status.toLowerCase().replace(' ','-')}`}>{x.status}</span><ChevronRight size={16}/></button>)}{!visible.length&&<div className="no-results">No problems match these filters.</div>}</Card></div>{selected&&<div className="modal-backdrop"><div className="problem-modal"><button className="modal-close" onClick={()=>setSelected(null)}><X/></button><span className="eyebrow">#{selected.problem.orderIndex} · {selected.problem.category}</span><h2>{selected.problem.title}</h2><div className="problem-meta"><Chip tone={selected.problem.difficulty.toLowerCase()}>{selected.problem.difficulty}</Chip><span className={`status status-${selected.status.toLowerCase().replace(' ','-')}`}>{selected.status}</span><span>{selected.attemptCount} {selected.attemptCount===1?'attempt':'attempts'}</span></div><div className="problem-actions"><button className="primary" onClick={()=>onStart(selected.problem)}><Play size={16}/>Start focus</button><button onClick={()=>onSetToday('Warm-up',selected.problem)}>Use as warm-up</button><button onClick={()=>onSetToday('Main problem',selected.problem)}>Use as main</button><a href={selected.problem.leetcodeUrl} target="_blank" rel="noreferrer">Open LeetCode</a></div><h3>Attempt history</h3>{history.length?history.map(e=><div className="history-row" key={e.id}><span><b>{e.outcome}</b><small>{new Date(e.completedAt).toLocaleDateString()}</small></span><span>{Math.max(1,Math.round(e.durationSeconds/60))} min</span><span>Confidence {e.confidence}/5</span></div>):<p className="muted-copy">No attempts yet. Start this problem when you’re ready.</p>}</div></div>}</div>
-}
-
-function SettingsPage({settings,onSave}:{settings:AppSettings,onSave:(s:AppSettings)=>Promise<void>}){const [d,setD]=useState(settings);useEffect(()=>setD(settings),[settings]);const patch=<K extends keyof AppSettings>(k:K,v:AppSettings[K])=>setD(s=>({...s,[k]:v}));return <div className="page settings-page"><Header title="Settings" sub="Shape LeetJournal around your practice."/><Card><h3>Profile</h3><label><span>Display name<small>Used in your daily greeting</small></span><input value={d.displayName} onChange={e=>patch('displayName',e.target.value)}/></label></Card><Card><h3>Practice goals</h3><label><span>Daily focus goal<small>Minutes of focused practice each day</small></span><input type="number" min="5" max="240" value={d.dailyFocusMinutes} onChange={e=>patch('dailyFocusMinutes',+e.target.value)}/></label><label><span>Weekly goal<small>Days you’d like to practice</small></span><select value={d.weeklyGoalDays} onChange={e=>patch('weeklyGoalDays',+e.target.value)}>{[3,4,5,6,7].map(x=><option key={x} value={x}>{x} days</option>)}</select></label></Card><Card><h3>Focus sessions</h3><label><span>Default duration<small>Length of a focus session</small></span><input type="number" min="5" max="180" value={d.focusDurationMinutes} onChange={e=>patch('focusDurationMinutes',+e.target.value)}/></label><label><span>First hint delay<small>When the first hint becomes timely</small></span><input type="number" min="1" max="60" value={d.hintDelayMinutes} onChange={e=>patch('hintDelayMinutes',+e.target.value)}/></label><Toggle label="Progressive hints" detail="Reveal hints one at a time" checked={d.progressiveHints} change={x=>patch('progressiveHints',x)}/></Card><Card><h3>Appearance</h3><Toggle label="Plant animations" detail="Gentle movement while focusing" checked={d.plantAnimations} change={x=>patch('plantAnimations',x)}/><label><span>Theme<small>Keep things calm and comfortable</small></span><select value={d.theme} onChange={e=>patch('theme',e.target.value)}><option value="warm-garden">Warm garden</option><option value="system">System</option></select></label></Card><button className="primary" onClick={()=>onSave(d)}>Save settings</button></div>}
-const Toggle=({label,detail,checked,change}:{label:string,detail:string,checked:boolean,change:(x:boolean)=>void})=><label><span>{label}<small>{detail}</small></span><input type="checkbox" checked={checked} onChange={e=>change(e.target.checked)}/></label>
-const Empty=({title,text,action}:{title:string,text:string,action:()=>void})=><div className="empty"><Plant large/><h2>{title}</h2><p>{text}</p><button className="primary" onClick={action}>Go to Today</button></div>
-const ConfirmLeave=({problem,onStay,onPauseExit,onEnd}:{problem:string;onStay:()=>void;onPauseExit:()=>void;onEnd:()=>void})=><div className="leave-session-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onStay()}}><section className="leave-session-dialog" role="alertdialog" aria-modal="true" aria-labelledby="leave-session-title"><span className="leave-session-icon"><Leaf size={20}/></span><small>Focus session in progress</small><h2 id="leave-session-title">Leave focus mode?</h2><p>Pause <b>{problem}</b> and return to your journal. Your timer, notes, and editor will be ready when you resume.</p><div className="leave-actions"><button className="leave-stay" autoFocus onClick={onStay}>Keep focusing</button><button className="leave-confirm" onClick={onPauseExit}><Pause size={15}/>Pause &amp; exit</button></div><button className="leave-end" onClick={onEnd}>End this attempt instead</button><em>Press Esc to keep focusing</em></section></div>
-
-export default function App(){const {dashboard,garden,focus,entries,reviews,books,settings,loading,error,reload:load,setFocus,setGarden,setSettings}=useAppData();const [page,setPage]=useState<Page>('today'),[logging,setLogging]=useState(false),[reflectionNotes,setReflectionNotes]=useState(''),[toast,setToast]=useState(''),[confirmLeave,setConfirmLeave]=useState(false),[focusReturn,setFocusReturn]=useState<Page>('today'),[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem('leetjournal.sidebar.collapsed')==='true')
- useEffect(()=>{const enabled=Boolean(focus&&['focus','garden-focus'].includes(page)&&!logging);api.setFocusShortcutEnabled(enabled).catch(()=>{})},[focus,page,logging])
- useEffect(()=>{let disposed=false,unlisten:(()=>void)|undefined;listen('focus-escape',()=>{if(logging||!focus||!['focus','garden-focus'].includes(page))return;setConfirmLeave(open=>!open)}).then(stop=>{if(disposed)stop();else unlisten=stop});return()=>{disposed=true;unlisten?.()}},[focus,page,logging])
- const reportActionError=(actionError:unknown)=>setToast(String(actionError).replace(/^Error:\s*/,''))
- const pause=async()=>{if(!focus)return;try{await api.pause(focus.attempt.id);setFocus(await api.focusContext())}catch(actionError){reportActionError(actionError)}}
- const pauseAndExit=async()=>{if(!focus)return;try{await api.pauseOnly(focus.attempt.id);setFocus(await api.focusContext());setConfirmLeave(false);setPage(focusReturn)}catch(actionError){reportActionError(actionError)}}
- const endSession=async()=>{if(!focus)return;try{await api.abandon(focus.attempt.id);await closeLeetCodeWorkspace();setConfirmLeave(false);setFocus(null);setToast('Session ended');await load();setPage(focusReturn)}catch(actionError){reportActionError(actionError)}}
- const start=async(p:Problem,isReview=false,fromGarden=false)=>{const returnPage:Page=fromGarden?'garden':page==='reviews'?'reviews':page==='problems'?'problems':page==='journal'?'journal':'today';setFocusReturn(returnPage);try{const active=focus??await api.focusContext();if(active){setFocus(active);if(active.attempt.problem.id!==p.id)setToast(`${active.attempt.problem.title} is still active · resume or end it before starting another problem`);setPage(fromGarden?'garden-focus':'focus');return}await api.start(p.id,isReview);setFocus(await api.focusContext());setPage(fromGarden?'garden-focus':'focus')}catch(actionError){reportActionError(actionError)}}
- const beginReflection=async(notes?:string)=>{if(!focus)return;if(notes!==undefined){setReflectionNotes(notes);setLogging(true);return}try{const current=await api.focusContext();if(!current)return;setFocus(current);setReflectionNotes(current.attempt.notes);setLogging(true)}catch(actionError){reportActionError(actionError)}}
- const finish=async(x:Omit<FinishAttemptInput,'attemptId'>)=>{if(!focus)return;try{const previous=garden?.currentStage;await api.finish({attemptId:focus.attempt.id,...x});await closeLeetCodeWorkspace();const next=await api.garden();setGarden(next);setLogging(false);setReflectionNotes('');await load();if(previous&&previous!==next.currentStage){setPage('garden');setToast(`The ${gardenStageName(previous)} has grown into a ${gardenStageName(next.currentStage)}.`)}else{setPage('journal');setToast('Journal entry saved · the garden feels a little livelier')}}catch(actionError){reportActionError(actionError);throw actionError}}
- const content=useMemo(()=>{if(loading)return <div className="loading"><LoaderCircle/><p>Opening your journal…</p></div>;if(error||!dashboard||!garden||!settings)return <div className="error-state"><h2>LeetJournal couldn’t open</h2><p>{error}</p><button className="primary" onClick={load}>Try again</button></div>;if(page==='today')return <Today data={dashboard} settings={settings} active={focus} onStart={(p,isReview)=>start(p,isReview)} onResume={()=>{setFocusReturn('today');setPage('focus')}} onReviews={()=>setPage('reviews')}/>;if(page==='garden')return <GardenPage state={garden} active={focus} animate={settings.plantAnimations} onStart={p=>start(p,false,true)} onReturn={()=>setPage('garden-focus')} onReviews={()=>setPage('reviews')}/>;if(page==='garden-focus')return <GardenFocus context={focus} garden={garden} animate={settings.plantAnimations} onPause={pause} onWorkspace={()=>setPage('focus')} onFinish={()=>void beginReflection()}/>;if(page==='focus')return <FocusPage context={focus} settings={settings} obscured={logging||confirmLeave} onPause={pause} onFinish={notes=>void beginReflection(notes)} onBack={()=>setPage('today')}/>;if(page==='problems')return <ProblemLibrary books={books} entries={entries} onStart={p=>start(p)} onReload={load} onSetToday={async(kind,p)=>{await api.setTodayItem(kind,p.id);await load();setToast(`${p.title} set as today’s ${kind.toLowerCase()}`)}}/>;if(page==='journal')return <JournalPage entries={entries} onStart={p=>start(p)}/>;if(page==='reviews')return <ReviewsPage reviews={reviews} onStart={p=>start(p,true)}/>;return <SettingsPage settings={settings} onSave={async s=>{setSettings(await api.saveSettings(s));await load();setToast('Settings saved')}}/>},[page,dashboard,garden,focus,entries,reviews,books,settings,loading,error,logging,confirmLeave])
- const toggleSidebar=()=>setSidebarCollapsed(value=>{const next=!value;localStorage.setItem('leetjournal.sidebar.collapsed',String(next));return next})
- const focusMode=page==='focus'||page==='garden-focus'
- return <div className={`app-shell ${sidebarCollapsed?'sidebar-collapsed':''} ${focusMode?'focus-mode':''} ${page==='garden'?'garden-shell':''} theme-${settings?.theme??'warm-garden'}`}><Sidebar page={page} name={settings?.displayName??'Coder'} setPage={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} hidden={focusMode}/><main>{content}</main>{focus&&page!=='focus'&&<div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden/></div>}{confirmLeave&&focus&&<ConfirmLeave problem={focus.attempt.problem.title} onStay={()=>setConfirmLeave(false)} onPauseExit={pauseAndExit} onEnd={endSession}/>}{logging&&focus&&<LogEntry context={focus} initialNotes={reflectionNotes} onSave={finish} onCancel={()=>{setLogging(false);setReflectionNotes('')}}/>} {toast&&<button className="toast" onClick={()=>setToast('')}>{toast}</button>}</div>}
