@@ -120,14 +120,24 @@ fn read_settings(conn: &rusqlite::Connection) -> AppSettings {
     }
 }
 
-fn review_delay_days(outcome: &str) -> i64 {
-    match outcome {
-        "Easy" => 14,
-        "Solved" => 7,
-        "Struggled" => 3,
-        "Needed hint" => 2,
-        _ => 1,
+const REVIEW_INTERVAL_DAYS: [i64; 7] = [1, 3, 7, 14, 30, 60, 120];
+
+fn review_schedule(current_level: i32, outcome: &str, confidence: i32) -> (i32, i64) {
+    let current = current_level.clamp(0, REVIEW_INTERVAL_DAYS.len() as i32 - 1);
+    let mut next = match outcome {
+        "Easy" => current + 2,
+        "Solved" => current + 1,
+        "Struggled" => current - 1,
+        "Needed hint" => current - 2,
+        _ => 0,
+    };
+    if matches!(outcome, "Easy" | "Solved") && confidence == 5 {
+        next += 1;
+    } else if outcome != "Couldn't solve" && confidence <= 2 {
+        next -= 1;
     }
+    let level = next.clamp(0, REVIEW_INTERVAL_DAYS.len() as i32 - 1);
+    (level, REVIEW_INTERVAL_DAYS[level as usize])
 }
 
 fn validate_finish_input(input: &FinishAttemptInput) -> AppResult<()> {
@@ -396,12 +406,18 @@ mod domain_tests {
     }
 
     #[test]
-    fn review_spacing_matches_outcomes() {
-        assert_eq!(review_delay_days("Easy"), 14);
-        assert_eq!(review_delay_days("Solved"), 7);
-        assert_eq!(review_delay_days("Struggled"), 3);
-        assert_eq!(review_delay_days("Needed hint"), 2);
-        assert_eq!(review_delay_days("Couldn't solve"), 1);
+    fn review_schedule_advances_and_recedes_with_mastery() {
+        assert_eq!(review_schedule(0, "Solved", 4), (1, 3));
+        assert_eq!(review_schedule(1, "Easy", 5), (4, 30));
+        assert_eq!(review_schedule(4, "Struggled", 4), (3, 14));
+        assert_eq!(review_schedule(4, "Needed hint", 2), (1, 3));
+        assert_eq!(review_schedule(6, "Couldn't solve", 5), (0, 1));
+    }
+
+    #[test]
+    fn review_schedule_is_clamped_to_supported_intervals() {
+        assert_eq!(review_schedule(6, "Easy", 5), (6, 120));
+        assert_eq!(review_schedule(0, "Needed hint", 1), (0, 1));
     }
 
     #[test]
@@ -585,9 +601,18 @@ pub fn finish_attempt(input: FinishAttemptInput, db: State<Db>) -> AppResult<Jou
             params![input.attempt_id, mistake],
         )?;
     }
-    let days = review_delay_days(&input.outcome);
+    let current_review_level: i32 = tx
+        .query_row(
+            "SELECT review_level FROM reviews WHERE problem_id=?",
+            [&problem_id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+    let (next_review_level, days) =
+        review_schedule(current_review_level, &input.outcome, input.confidence);
     let next = (Local::now().date_naive() + Duration::days(days)).to_string();
-    tx.execute("INSERT INTO reviews(problem_id,next_review_date,review_level,last_reviewed_at) VALUES(?,?,1,?) ON CONFLICT(problem_id) DO UPDATE SET next_review_date=excluded.next_review_date,review_level=reviews.review_level+1,last_reviewed_at=excluded.last_reviewed_at",params![problem_id,next,now.to_rfc3339()])?;
+    tx.execute("INSERT INTO reviews(problem_id,next_review_date,review_level,last_reviewed_at) VALUES(?,?,?,?) ON CONFLICT(problem_id) DO UPDATE SET next_review_date=excluded.next_review_date,review_level=excluded.review_level,last_reviewed_at=excluded.last_reviewed_at",params![problem_id,next,next_review_level,now.to_rfc3339()])?;
     let xp =
         20 + if input.outcome == "Easy" || input.outcome == "Solved" {
             10

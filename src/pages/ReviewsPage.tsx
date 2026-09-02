@@ -21,7 +21,7 @@ function ReviewRow({ review, due, onStart }: { review: Review; due: boolean; onS
         <b>{review.problem.title}</b>
         <small>
           <Chip tone={review.problem.difficulty.toLowerCase()}>{review.problem.difficulty}</Chip>
-          {review.problem.category} · Last: {review.lastOutcome}
+          {review.problem.category} · Memory step {review.reviewLevel + 1} · Last: {review.lastOutcome}
         </small>
       </span>
       <span className="review-date">
