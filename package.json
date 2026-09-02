@@ -1,0 +1,31 @@
+{
+  "name": "leetjournal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "tauri": "tauri",
+    "desktop": "tauri dev",
+    "check": "tsc -b",
+    "check:all": "npm run check && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && npm test",
+    "test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@vitejs/plugin-react": "latest",
+    "lucide-react": "latest",
+    "pixi.js": "^8.20.1",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

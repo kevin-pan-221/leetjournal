@@ -1,0 +1,42 @@
+import { Channel, invoke } from '@tauri-apps/api/core'
+import type {
+  AppSettings,
+  Attempt,
+  CreateBookInput,
+  Dashboard,
+  FinishAttemptInput,
+  FocusContext,
+  GardenState,
+  JournalEntry,
+  ProblemBook,
+  ProblemOverview,
+  Review,
+  TodayPlan,
+} from './domain'
+
+export type * from './domain'
+
+const isTauri = () => '__TAURI_INTERNALS__' in window
+export const api = {
+  isTauri,
+  dashboard: () => invoke<Dashboard>('get_dashboard'),
+  garden: () => invoke<GardenState>('get_garden_state'),
+  start: (problemId:string,isReview=false) => invoke<Attempt>('start_attempt',{problemId,isReview}),
+  pause: (attemptId:number) => invoke('toggle_pause',{attemptId}),
+  pauseOnly: (attemptId:number) => invoke('pause_attempt',{attemptId}),
+  notes: (attemptId:number,notes:string) => invoke('save_attempt_notes',{attemptId,notes}),
+  abandon: (attemptId:number) => invoke('abandon_attempt',{attemptId}),
+  finish: (input:FinishAttemptInput) => invoke<JournalEntry>('finish_attempt',{input}),
+  journal: () => invoke<JournalEntry[]>('get_journal'),
+  reviews: () => invoke<Review[]>('get_review_queue'),
+  settings: () => invoke<AppSettings>('get_settings'),
+  saveSettings: (settings:AppSettings) => invoke<AppSettings>('save_settings',{settings}),
+  focusContext: () => invoke<FocusContext|null>('get_focus_context'),
+  setTodayItem: (kind:'Warm-up'|'Main problem',problemId:string) => invoke<TodayPlan>('set_today_plan_item',{kind,problemId}),
+  library: () => invoke<ProblemBook[]>('get_problem_library'),
+  createBook: (input:CreateBookInput) => invoke<ProblemBook>('create_problem_book',{input}),
+  bookProblems: (bookId:string) => invoke<ProblemOverview[]>('get_book_problems',{bookId}),
+  askQwen: async (prompt:string,onToken:(token:string)=>void) => {const onTokenChannel=new Channel<string>();onTokenChannel.onmessage=onToken;await invoke('ask_qwen',{prompt,onToken:onTokenChannel})},
+  leetcodeEditorCode: (webviewLabel:string) => invoke<string>('get_leetcode_editor_code',{webviewLabel}),
+  setFocusShortcutEnabled: (enabled:boolean) => invoke('set_focus_shortcut_enabled',{enabled}),
+}

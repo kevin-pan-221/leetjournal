@@ -1,0 +1,15 @@
+.sidebar{transition:width .2s ease,padding .2s ease}
+.logo{position:relative}
+.sidebar-toggle{margin-left:auto;width:27px;height:27px;border:1px solid transparent;background:transparent;border-radius:7px;color:#8a8377;display:grid;place-items:center;cursor:pointer;padding:0}
+.sidebar-toggle:hover{background:#eee7d8;border-color:#e2d9ca}
+.app-shell.sidebar-collapsed{grid-template-columns:76px 1fr}
+.sidebar-collapsed .sidebar{padding-left:14px;padding-right:14px}
+.sidebar-collapsed .logo{padding-left:9px;padding-right:9px;justify-content:center}
+.sidebar-collapsed .logo>span:nth-child(2),.sidebar-collapsed .sidebar nav span,.sidebar-collapsed .profile div{display:none}
+.sidebar-collapsed .sidebar-toggle{position:absolute;left:50%;top:39px;transform:translateX(-50%);background:#f7f2e8;border-color:#e5ddcf;z-index:2}
+.sidebar-collapsed .sidebar nav{margin-top:19px}
+.sidebar-collapsed .sidebar nav button{padding:12px;justify-content:center}
+.sidebar-collapsed .profile{justify-content:center;padding:10px 0}
+@media(max-width:1050px){.sidebar-toggle{display:none}}
+.app-shell.focus-mode{grid-template-columns:0 1fr}
+.focus-mode .sidebar{width:0;padding-left:0;padding-right:0;border:0;overflow:hidden;transform:translateX(-100%);pointer-events:none}

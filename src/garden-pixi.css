@@ -1,0 +1,1 @@
+.pixi-world{position:absolute;inset:0;overflow:hidden}.pixi-world canvas{display:block;width:100%;height:100%}.pixi-world.pixi-unavailable{display:none}.garden-motion-disabled .pixi-world canvas{display:none}.garden-motion-enabled .pixi-world canvas{display:block!important}
