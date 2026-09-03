@@ -27,6 +27,13 @@ export async function closeLeetCodeWorkspace() {
   if (cached) await cached.view.close().catch(() => {})
 }
 
+interface WorkspaceBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface LeetCodeWorkspaceProps {
   url: string
   hidden?: boolean
@@ -54,7 +61,8 @@ export function LeetCodeWorkspace({
     let disposed = false
     let frame = 0
     let layoutFrame = 0
-    let revision = 0
+    let positioning = false
+    let pendingBounds: WorkspaceBounds | null = null
     let observer: ResizeObserver | undefined
     let unlistenResize: (() => void) | undefined
     let unlistenScale: (() => void) | undefined
@@ -62,20 +70,31 @@ export function LeetCodeWorkspace({
     let resizeSettleTimers: number[] = []
 
     const position = async () => {
-      const ticket = ++revision
+      if (disposed || !host.current || !view.current) return
+      const bounds = host.current.getBoundingClientRect()
+      pendingBounds = {
+        x: bounds.left,
+        y: bounds.top,
+        width: Math.max(1, bounds.width),
+        height: Math.max(1, bounds.height),
+      }
+      if (positioning) return
+
+      positioning = true
       try {
-        if (disposed || ticket !== revision || !host.current || !view.current) return
-        const bounds = host.current.getBoundingClientRect()
-        const current = view.current
-        await invoke('set_leetcode_webview_bounds', {
-          webviewLabel: current.label,
-          x: bounds.left,
-          y: bounds.top,
-          width: Math.max(1, bounds.width),
-          height: Math.max(1, bounds.height),
-        })
+        while (!disposed && pendingBounds && view.current) {
+          const next = pendingBounds
+          pendingBounds = null
+          await invoke("set_leetcode_webview_bounds", {
+            webviewLabel: view.current.label,
+            ...next,
+          })
+        }
       } catch {
-        // The window may be closing while a final resize callback is still queued.
+        // The window may be closing while a final resize callback is queued.
+      } finally {
+        positioning = false
+        if (!disposed && pendingBounds) void position()
       }
     }
 
@@ -191,7 +210,7 @@ export function LeetCodeWorkspace({
 
     return () => {
       disposed = true
-      revision++
+      pendingBounds = null
       onReadyLabel?.('')
       cancelAnimationFrame(frame)
       cancelAnimationFrame(layoutFrame)
