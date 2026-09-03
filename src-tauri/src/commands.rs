@@ -845,7 +845,7 @@ pub fn get_problem_library(db: State<Db>) -> AppResult<Vec<ProblemBook>> {
       COUNT(DISTINCT CASE WHEN EXISTS(SELECT 1 FROM attempts a WHERE a.problem_id=i.problem_id AND a.completed_at IS NOT NULL) THEN i.problem_id END),
       COUNT(DISTINCT CASE WHEN (SELECT outcome FROM attempts a WHERE a.problem_id=i.problem_id AND a.completed_at IS NOT NULL ORDER BY a.completed_at DESC LIMIT 1) IN ('Easy','Solved') THEN i.problem_id END)
       FROM problem_books b LEFT JOIN problem_book_items i ON i.book_id=b.id
-      GROUP BY b.id ORDER BY b.order_index,b.created_at")?;
+      GROUP BY b.id ORDER BY b.built_in DESC,b.order_index,b.created_at")?;
     let books = stmt
         .query_map([], |r| {
             Ok(ProblemBook {

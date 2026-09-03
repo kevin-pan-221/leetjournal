@@ -1,9 +1,29 @@
 use crate::{error::AppResult, models::Problem};
 use rusqlite::{params, Connection};
+use serde::Deserialize;
 use std::{fs, sync::Mutex};
 use tauri::{AppHandle, Manager};
 
 pub struct Db(pub Mutex<Connection>);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompanyBookCatalog {
+    source_commit: String,
+    books: Vec<CompanyBookSeed>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompanyBookSeed {
+    id: String,
+    title: String,
+    subtitle: String,
+    description: String,
+    accent: String,
+    order_index: i32,
+    problems: Vec<Problem>,
+}
 
 pub fn initialize(app: &AppHandle) -> AppResult<Db> {
     let dir = app
@@ -138,6 +158,42 @@ fn seed(conn: &Connection) -> AppResult<()> {
         [],
     )?;
     tx.execute("INSERT INTO problem_book_items(book_id,problem_id,order_index) SELECT 'neetcode-150',id,order_index FROM problems WHERE is_curriculum=1", [])?;
+
+    let company_catalog: CompanyBookCatalog =
+        serde_json::from_str(include_str!("../data/company_books.json"))?;
+    let company_catalog_is_current: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM settings WHERE key='company_catalog_version' AND value=?)",
+        [&company_catalog.source_commit],
+        |row| row.get(0),
+    )?;
+    if !company_catalog_is_current {
+        for book in company_catalog.books {
+            tx.execute(
+                "INSERT INTO problem_books(id,title,subtitle,description,accent,order_index,built_in,created_at)
+                 VALUES(?,?,?,?,?,?,1,datetime('now'))
+                 ON CONFLICT(id) DO UPDATE SET title=excluded.title,subtitle=excluded.subtitle,
+                 description=excluded.description,accent=excluded.accent,order_index=excluded.order_index,built_in=1",
+                params![book.id, book.title, book.subtitle, book.description, book.accent, book.order_index],
+            )?;
+            tx.execute("DELETE FROM problem_book_items WHERE book_id=?", [&book.id])?;
+            for problem in book.problems {
+                tx.execute(
+                    "INSERT OR IGNORE INTO problems(id,title,category,difficulty,leetcode_url,neetcode_url,order_index,category_order,is_curriculum)
+                     VALUES(?,?,?,?,?,?,?,?,0)",
+                    params![problem.id, problem.title, problem.category, problem.difficulty, problem.leetcode_url, problem.neetcode_url, problem.order_index, problem.category_order],
+                )?;
+                tx.execute(
+                    "INSERT INTO problem_book_items(book_id,problem_id,order_index) VALUES(?,?,?)",
+                    params![book.id, problem.id, problem.order_index],
+                )?;
+            }
+        }
+        tx.execute(
+            "INSERT INTO settings(key,value) VALUES('company_catalog_version',?)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            [&company_catalog.source_commit],
+        )?;
+    }
     tx.commit()?;
     Ok(())
 }
@@ -192,5 +248,37 @@ mod tests {
         assert!(problems
             .iter()
             .all(|p| matches!(p.difficulty.as_str(), "Easy" | "Medium" | "Hard")));
+    }
+
+    #[test]
+    fn company_book_seed_is_complete_and_valid() {
+        let catalog: CompanyBookCatalog =
+            serde_json::from_str(include_str!("../data/company_books.json")).unwrap();
+        let expected = [
+            ("company-roblox", 56),
+            ("company-microsoft", 1384),
+            ("company-databricks", 31),
+        ];
+
+        assert_eq!(catalog.books.len(), expected.len());
+        for (book, (expected_id, expected_count)) in catalog.books.iter().zip(expected) {
+            assert_eq!(book.id, expected_id);
+            assert_eq!(book.problems.len(), expected_count);
+            assert_eq!(
+                book.problems
+                    .iter()
+                    .map(|problem| &problem.id)
+                    .collect::<HashSet<_>>()
+                    .len(),
+                expected_count
+            );
+            assert!(book.problems.iter().enumerate().all(|(index, problem)| {
+                problem.order_index == index as i32 + 1
+                    && matches!(problem.difficulty.as_str(), "Easy" | "Medium" | "Hard")
+                    && problem
+                        .leetcode_url
+                        .starts_with("https://leetcode.com/problems/")
+            }));
+        }
     }
 }

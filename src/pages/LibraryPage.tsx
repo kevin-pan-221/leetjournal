@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookOpen, ChevronRight, Pencil, Play, Search, Sprout, X } from 'lucide-react'
 import { api } from '../api'
 import type { JournalEntry, Problem, ProblemBook, ProblemOverview } from '../domain'
@@ -27,13 +27,17 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
   const [status, setStatus] = useState('All')
   const [category, setCategory] = useState('All')
   const [selected, setSelected] = useState<ProblemOverview | null>(null)
+  const [visibleCount, setVisibleCount] = useState(100)
   const categories = [...new Set(items.map((item) => item.problem.category))]
   const visible = items.filter((item) =>
     (category === 'All' || item.problem.category === category)
     && (difficulty === 'All' || item.problem.difficulty === difficulty)
     && (status === 'All' || item.status === status)
     && item.problem.title.toLowerCase().includes(query.toLowerCase()))
+  const rendered = visible.slice(0, visibleCount)
   const history = selected ? entries.filter((entry) => entry.problem.id === selected.problem.id) : []
+
+  useEffect(() => setVisibleCount(100), [book.id, query, difficulty, status, category])
 
   return (
     <div className="page problems-page">
@@ -57,8 +61,9 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
         </aside>
         <Card className="problem-table">
           <div className="problem-table-head"><span>Problem</span><span>Difficulty</span><span>Status</span><span /></div>
-          {visible.map((item) => <button className="problem-row" key={item.problem.id} onClick={() => setSelected(item)}><span><i>{item.problem.orderIndex}</i><span><b>{item.problem.title}</b><small>{item.problem.category}</small></span></span><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip><span className={`status status-${item.status.toLowerCase().replace(' ', '-')}`}>{item.status}</span><ChevronRight size={16} /></button>)}
+          {rendered.map((item) => <button className="problem-row" key={item.problem.id} onClick={() => setSelected(item)}><span><i>{item.problem.orderIndex}</i><span><b>{item.problem.title}</b><small>{item.problem.category}</small></span></span><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip><span className={`status status-${item.status.toLowerCase().replace(' ', '-')}`}>{item.status}</span><ChevronRight size={16} /></button>)}
           {!visible.length && <div className="no-results">No problems match these filters.</div>}
+          {rendered.length < visible.length && <button className="problem-load-more" onClick={() => setVisibleCount((count) => count + 100)}>Show 100 more <span>{visible.length - rendered.length} remaining</span></button>}
         </Card>
       </div>
       {selected && <div className="modal-backdrop"><div className="problem-modal"><button className="modal-close" onClick={() => setSelected(null)}><X /></button><span className="eyebrow">#{selected.problem.orderIndex} · {selected.problem.category}</span><h2>{selected.problem.title}</h2><div className="problem-meta"><Chip tone={selected.problem.difficulty.toLowerCase()}>{selected.problem.difficulty}</Chip><span className={`status status-${selected.status.toLowerCase().replace(' ', '-')}`}>{selected.status}</span><span>{selected.attemptCount} {selected.attemptCount === 1 ? 'attempt' : 'attempts'}</span></div><div className="problem-actions"><button className="primary" onClick={() => onStart(selected.problem)}><Play size={16} />Start focus</button><button onClick={() => onSetToday('Warm-up', selected.problem)}>Use as warm-up</button><button onClick={() => onSetToday('Main problem', selected.problem)}>Use as main</button><a href={selected.problem.leetcodeUrl} target="_blank" rel="noreferrer">Open LeetCode</a></div><h3>Attempt history</h3>{history.length ? history.map((entry) => <div className="history-row" key={entry.id}><span><b>{entry.outcome}</b><small>{new Date(entry.completedAt).toLocaleDateString()}</small></span><span>{Math.max(1, Math.round(entry.durationSeconds / 60))} min</span><span>Confidence {entry.confidence}/5</span></div>) : <p className="muted-copy">No attempts yet. Start this problem when you’re ready.</p>}</div></div>}

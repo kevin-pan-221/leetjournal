@@ -31,7 +31,7 @@ LeetJournal brings planning, focused problem solving, reflection, and spaced rev
 - **Know what to practice.** A daily warm-up and main problem are selected from your curriculum and review queue.
 - **Build durable recall.** Reflections feed a mastery-level spaced-review schedule rather than a fixed reminder interval.
 - **Keep a real learning record.** Attempts, notes, confidence, mistakes, streaks, and reviews live in a local SQLite database.
-- **Organize problems like books.** NeetCode 150 is included, and personal books can import LeetCode problem URLs in bulk.
+- **Organize problems like books.** NeetCode 150 plus Roblox, Microsoft, and Databricks company collections are included, and personal books can import LeetCode problem URLs in bulk.
 - **Ask a private local coach.** Optional `@qwen` commands stream from LM Studio; `@big-qwen` can include the active problem, notes, and live editor code.
 - **Make progress visible.** Solved problems and consistent practice gradually bring the garden world to life.
 
@@ -109,6 +109,10 @@ LeetJournal requires a loaded model whose LM Studio identifier contains Qwen 3.5
 4. Press <kbd>Esc</kbd> to pause and leave safely, or choose **Finish & reflect** when done.
 5. Record the outcome, confidence, and mistakes. LeetJournal schedules the next review and updates garden progress.
 6. Revisit completed work in **Journal** and due problems in **Reviews**.
+
+## Curated problem sources
+
+The built-in company books use the frequency-ordered “All” snapshots from [liquidslr/leetcode-company-wise-problems](https://github.com/liquidslr/leetcode-company-wise-problems), captured from commit `03850eb` (dataset dated June 20, 2025). Company tags are historical preparation signals, not guarantees about current interview loops.
 
 ## Local data and privacy
 
