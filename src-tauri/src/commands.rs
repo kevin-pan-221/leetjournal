@@ -1183,6 +1183,25 @@ pub fn set_focus_shortcut_enabled(
         .map_err(|error| AppError::Message(error.to_string()))
 }
 
+#[cfg(target_os = "macos")]
+fn clip_leetcode_webview(webview: &tauri::Webview) -> AppResult<()> {
+    webview
+        .with_webview(|platform| unsafe {
+            let view: &objc2_app_kit::NSView = &*platform.inner().cast();
+            view.setWantsLayer(true);
+            if let Some(layer) = view.layer() {
+                layer.setCornerRadius(12.0);
+                layer.setMasksToBounds(true);
+            }
+        })
+        .map_err(|error| AppError::Message(error.to_string()))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn clip_leetcode_webview(_webview: &tauri::Webview) -> AppResult<()> {
+    Ok(())
+}
+
 #[tauri::command]
 pub fn set_leetcode_webview_bounds(
     app: AppHandle,
@@ -1202,6 +1221,7 @@ pub fn set_leetcode_webview_bounds(
         return Err(AppError::Message("Invalid workspace bounds".into()));
     }
     let webview = leetcode_webview(&app, &webview_label)?;
+    clip_leetcode_webview(&webview)?;
     webview
         .set_bounds(tauri::Rect {
             position: tauri::LogicalPosition::new(x, y).into(),
