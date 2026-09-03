@@ -7,11 +7,13 @@ type Bird={node:Graphics;x:number;y:number;speed:number;phase:number}
 
 export function GardenWorld({asset,vitality,animate}:{asset:string;vitality:GardenVitality;animate:boolean}){
  const host=useRef<HTMLDivElement>(null)
+ const animateRef=useRef(animate)
+ useEffect(()=>{animateRef.current=animate},[animate])
  useEffect(()=>{let disposed=false,observer:ResizeObserver|undefined,app:Application|undefined
   const start=async()=>{if(!host.current)return;const pixi=new Application();app=pixi
    await pixi.init({resizeTo:host.current,backgroundAlpha:0,antialias:true,autoDensity:true,resolution:Math.min(devicePixelRatio,2),preference:'webgl'})
-   if(disposed){pixi.destroy(true);return}host.current.appendChild(pixi.canvas)
-   const texture=await Assets.load(asset);if(disposed){pixi.destroy(true);return}
+   if(disposed){pixi.stop();return}host.current.appendChild(pixi.canvas)
+   const texture=await Assets.load(asset);if(disposed){pixi.stop();return}
    const background=new Sprite(texture),world=new Container(),sky=new Container(),weather=new Container(),water=new Container(),foreground=new Container()
    pixi.stage.addChild(background,world);world.addChild(sky,weather,water,foreground)
    const clouds:Cloud[]=[[.06,.13,.0068,1.08],[.52,.23,.0044,.78],[.8,.08,.0031,.58]].map(([x,y,speed,scale])=>{const node=new Container();[[0,16,78,23],[42,0,70,43],[92,14,76,27]].forEach(([cx,cy,w,h])=>node.addChild(new Graphics().ellipse(cx,cy,w/2,h/2).fill({color:0xffffff,alpha:.58})));sky.addChild(node);return{node,x,y,speed,scale}})
@@ -26,7 +28,7 @@ export function GardenWorld({asset,vitality,animate}:{asset:string;vitality:Gard
    const rate=vitality==='thriving'?1:vitality==='calm'?.72:.4,showBirds=vitality!=='needsCare'
    const layout=()=>{const w=pixi.screen.width,h=pixi.screen.height,scale=Math.max(w/texture.width,h/texture.height);background.scale.set(scale);background.x=(w-texture.width*scale)/2;background.y=(h-texture.height*scale)/2;waterMask.scale.set(w,h);clouds.forEach(c=>{c.node.scale.set(c.scale*Math.max(.8,w/1400));c.node.x=c.x*w;c.node.y=c.y*h});ripples.forEach(r=>r.line.y=r.y*h);breeze.forEach(b=>b.g.y=b.y*h);birds.forEach(b=>{b.node.y=b.y*h;b.node.visible=showBirds});seeds.forEach(s=>s.node.position.set(s.x*w,s.y*h));grass.forEach(g=>g.blade.position.set(g.x*w,g.y*h));treeGlow.position.set(.34*w,.39*h);butterflies.forEach(b=>b.node.position.set(b.x*w,b.y*h))}
    observer=new ResizeObserver(layout);observer.observe(host.current!);layout();let elapsed=0
-   pixi.ticker.add(ticker=>{if(!animate)return;const dt=Math.min(ticker.deltaMS,40);elapsed+=dt
+   pixi.ticker.add(ticker=>{if(!animateRef.current)return;const dt=Math.min(ticker.deltaMS,40);elapsed+=dt
     clouds.forEach(c=>{c.x+=c.speed*dt*.01*rate;if(c.x>1.16)c.x=-.24;c.node.x=c.x*pixi.screen.width;c.node.y=(c.y+Math.sin(elapsed*.00018+c.speed*900)*.006)*pixi.screen.height})
     ripples.forEach(r=>{const cycle=(elapsed*.000075*rate+r.phase)%1;r.line.x=(-.12+cycle*1.2)*pixi.screen.width;r.line.y=(r.y+cycle*.04)*pixi.screen.height;r.line.alpha=Math.sin(cycle*Math.PI)*.82*rate})
     breeze.forEach(b=>{const cycle=(elapsed*.00005*rate+b.phase)%1;b.g.x=(-.25+cycle*1.5)*pixi.screen.width;b.g.alpha=Math.sin(cycle*Math.PI)*.9})
@@ -37,8 +39,8 @@ export function GardenWorld({asset,vitality,animate}:{asset:string;vitality:Gard
     butterflies.forEach(b=>{b.node.x=(b.x+Math.sin(elapsed*.00065+b.phase)*.055)*pixi.screen.width;b.node.y=(b.y+Math.cos(elapsed*.0011+b.phase)*.025)*pixi.screen.height;b.node.scale.x=.35+Math.abs(Math.sin(elapsed*.009+b.phase))})
    })
   }
-  start().catch(()=>host.current?.classList.add('pixi-unavailable'))
-  return()=>{disposed=true;observer?.disconnect();app?.destroy(true,{children:true,texture:false})}
- },[asset,vitality,animate])
+  start().catch(()=>{if(!disposed)host.current?.classList.add('pixi-unavailable')})
+  return()=>{disposed=true;observer?.disconnect();app?.stop();app=undefined}
+ },[asset,vitality])
  return <div className="pixi-world" ref={host}/>
 }

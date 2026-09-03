@@ -17,6 +17,10 @@ interface CachedWorkspace {
 let cachedWorkspace: CachedWorkspace | null = null
 let workspaceConsumers = 0
 
+export async function hideLeetCodeWorkspace() {
+  await cachedWorkspace?.view.hide().catch(() => {})
+}
+
 export async function closeLeetCodeWorkspace() {
   const cached = cachedWorkspace
   cachedWorkspace = null

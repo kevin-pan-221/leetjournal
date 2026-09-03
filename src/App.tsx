@@ -5,7 +5,7 @@ import { api } from './api'
 import type { FinishAttemptInput, Problem } from './domain'
 import type { Page } from './app/page'
 import { GardenFocus, GardenPage, gardenStageName } from './Garden'
-import { closeLeetCodeWorkspace, LeetCodeWorkspace } from './LeetCodeWorkspace'
+import { closeLeetCodeWorkspace, hideLeetCodeWorkspace, LeetCodeWorkspace } from './LeetCodeWorkspace'
 import { ConfirmLeave } from './components/ConfirmLeave'
 import { ReflectionDialog } from './components/ReflectionDialog'
 import { Sidebar } from './components/Sidebar'
@@ -26,6 +26,7 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [focusReturn, setFocusReturn] = useState<Page>('today')
+  const [gardenMounted, setGardenMounted] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('leetjournal.sidebar.collapsed') === 'true',
   )
@@ -153,7 +154,7 @@ export default function App() {
       return <div className="error-state"><h2>LeetJournal couldn’t open</h2><p>{error}</p><button className="primary" onClick={reload}>Try again</button></div>
     }
     if (page === 'today') return <TodayPage data={dashboard} settings={settings} active={focus} onStart={(problem, isReview) => start(problem, isReview)} onResume={() => { setFocusReturn('today'); setPage('focus') }} onReviews={() => setPage('reviews')} />
-    if (page === 'garden') return <GardenPage state={garden} active={focus} animate={settings.plantAnimations} onStart={(problem) => start(problem, false, true)} onReturn={() => setPage('garden-focus')} onReviews={() => setPage('reviews')} />
+    if (page === 'garden') return null
     if (page === 'garden-focus') return <GardenFocus context={focus} garden={garden} animate={settings.plantAnimations} onPause={pause} onWorkspace={() => setPage('focus')} onFinish={() => void beginReflection()} />
     if (page === 'focus') return <FocusPage context={focus} settings={settings} obscured={logging || confirmLeave} onPause={pause} onFinish={(notes) => void beginReflection(notes)} onBack={() => setPage('today')} />
     if (page === 'problems') return <LibraryPage books={books} entries={entries} onStart={(problem) => start(problem)} onReload={reload} onSetToday={async (kind, problem) => { await api.setTodayItem(kind, problem.id); await reload(); setToast(`${problem.title} set as today’s ${kind.toLowerCase()}`) }} />
@@ -168,12 +169,25 @@ export default function App() {
     return next
   })
   const focusMode = page === 'focus' || page === 'garden-focus'
+  const navigate = async (next: Page) => {
+    if (next === 'garden') setGardenMounted(true)
+    if (next === 'settings') await closeLeetCodeWorkspace()
+    else if (next !== 'focus') await hideLeetCodeWorkspace()
+    setPage(next)
+  }
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${focusMode ? 'focus-mode' : ''} ${page === 'garden' ? 'garden-shell' : ''} theme-${settings?.theme ?? 'warm-garden'}`}>
-      <Sidebar page={page} name={settings?.displayName ?? 'Coder'} onNavigate={setPage} collapsed={sidebarCollapsed} onToggle={toggleSidebar} hidden={focusMode} />
-      <main>{content}</main>
-      {focus && page !== 'focus' && <div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden /></div>}
+      <Sidebar page={page} name={settings?.displayName ?? 'Coder'} onNavigate={(next) => void navigate(next)} collapsed={sidebarCollapsed} onToggle={toggleSidebar} hidden={focusMode} />
+      <main>
+        {gardenMounted && garden && settings && (
+          <div className={`garden-route ${page === "garden" ? "active" : ""}`} aria-hidden={page !== "garden"}>
+            <GardenPage state={garden} active={focus} animate={settings.plantAnimations && page === "garden"} onStart={(problem) => start(problem, false, true)} onReturn={() => setPage("garden-focus")} onReviews={() => setPage("reviews")} />
+          </div>
+        )}
+        {page !== "garden" && content}
+      </main>
+      {focus && page === 'today' && <div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden /></div>}
       {confirmLeave && focus && <ConfirmLeave problem={focus.attempt.problem.title} onStay={() => setConfirmLeave(false)} onPauseExit={pauseAndExit} onEnd={endSession} />}
       {logging && focus && <ReflectionDialog context={focus} initialNotes={reflectionNotes} onSave={finish} onCancel={() => { setLogging(false); setReflectionNotes('') }} />}
       {toast && <button className="toast" onClick={() => setToast('')}>{toast}</button>}
