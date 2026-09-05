@@ -55,6 +55,10 @@ export default function App() {
   const reportActionError = (actionError: unknown) =>
     setToast(String(actionError).replace(/^Error:\s*/, ''))
 
+  const releaseQwen = async () => {
+    try { await api.unloadQwen() } catch (actionError) { reportActionError(actionError) }
+  }
+
   const pause = async () => {
     if (!focus) return
     try {
@@ -67,6 +71,7 @@ export default function App() {
     if (!focus) return
     try {
       await api.pauseOnly(focus.attempt.id)
+      await releaseQwen()
       setFocus(await api.focusContext())
       setConfirmLeave(false)
       setPage(focusReturn)
@@ -77,6 +82,7 @@ export default function App() {
     if (!focus) return
     try {
       await api.abandon(focus.attempt.id)
+      await releaseQwen()
       await closeLeetCodeWorkspace()
       setConfirmLeave(false)
       setFocus(null)
@@ -129,6 +135,7 @@ export default function App() {
     try {
       const previousStage = garden?.currentStage
       await api.finish({ attemptId: focus.attempt.id, ...input })
+      await releaseQwen()
       await closeLeetCodeWorkspace()
       const nextGarden = await api.garden()
       setGarden(nextGarden)

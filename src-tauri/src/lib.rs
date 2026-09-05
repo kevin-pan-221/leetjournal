@@ -73,6 +73,7 @@ pub fn run() {
         .setup(|app| {
             let db = db::initialize(app.handle())?;
             app.manage(db);
+            app.manage(commands::QwenRuntime::default());
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -104,6 +105,7 @@ pub fn run() {
             commands::delete_problem_book,
             commands::get_book_problems,
             commands::ask_qwen,
+            commands::unload_qwen,
             commands::get_leetcode_editor_code,
             commands::set_focus_shortcut_enabled,
             commands::set_leetcode_webview_bounds

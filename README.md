@@ -83,7 +83,7 @@ src-tauri/target/release/bundle/macos/LeetJournal.app
 LeetJournal's notes work without AI. To enable the local Qwen commands:
 
 1. Install [LM Studio](https://lmstudio.ai/).
-2. Download and load a **Qwen 3.5 4B** quantization suitable for your Mac.
+2. Download a **Qwen 3.5 4B** quantization suitable for your Mac. You do not need to keep it loaded.
 3. In LM Studio's Developer tab, start the local server on port `1234`.
 4. Open a LeetJournal focus session and enter one of these commands on the last line of Notes:
 
@@ -99,7 +99,7 @@ Press <kbd>Enter</kbd> to stream the response into the notebook. Use <kbd>Shift<
 | `@qwen` | Only the text after the command |
 | `@big-qwen` | Current problem, notebook, request, and live LeetCode editor code |
 
-LeetJournal requires a loaded model whose LM Studio identifier contains Qwen 3.5 and 4B. It does not silently fall back to another model. Inference uses the local LM Studio server with reasoning disabled by default.
+LeetJournal requires a downloaded model whose LM Studio identifier contains Qwen 3.5 and 4B. It does not silently fall back to another model. The app loads that model on the first Qwen request in a focus session and unloads it when you leave or finish the session. Inference uses the local LM Studio server with reasoning disabled by default.
 
 ## Everyday workflow
 

@@ -6,6 +6,7 @@ use crate::{
 use chrono::{Datelike, Duration, Local, Utc};
 use futures_util::StreamExt;
 use rusqlite::{params, OptionalExtension};
+use std::sync::Mutex;
 use tauri::{ipc::Channel, AppHandle, Manager, State};
 
 type ActiveAttemptRow = (i64, String, String, Option<String>, i64, String, bool);
@@ -1118,13 +1119,96 @@ pub fn get_book_problems(book_id: String, db: State<Db>) -> AppResult<Vec<Proble
     Ok(problems)
 }
 
+const LM_STUDIO_BASE_URL: &str = "http://127.0.0.1:1234";
+
+#[derive(Default)]
+pub struct QwenRuntime(Mutex<Option<String>>);
+
 #[derive(serde::Deserialize)]
-struct LmModels {
-    data: Vec<LmModel>,
+struct LmModelCatalog {
+    models: Vec<LmModel>,
 }
+
 #[derive(serde::Deserialize)]
 struct LmModel {
+    #[serde(rename = "type")]
+    model_type: String,
+    key: String,
+    display_name: String,
+    params_string: Option<String>,
+    selected_variant: Option<String>,
+    loaded_instances: Vec<LmLoadedInstance>,
+}
+
+#[derive(serde::Deserialize)]
+struct LmLoadedInstance {
     id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct LmLoadResponse {
+    instance_id: String,
+}
+
+fn is_qwen_35_4b(model: &LmModel) -> bool {
+    let identity = format!(
+        "{} {} {} {}",
+        model.key,
+        model.display_name,
+        model.params_string.as_deref().unwrap_or_default(),
+        model.selected_variant.as_deref().unwrap_or_default()
+    )
+    .to_lowercase();
+    model.model_type == "llm"
+        && identity.contains("qwen")
+        && (identity.contains("3.5") || identity.contains("3_5") || identity.contains("qwen3.5"))
+        && (identity.contains("4b") || identity.contains("4-b") || identity.contains("4 b"))
+}
+
+async fn qwen_instance(client: &reqwest::Client, runtime: &QwenRuntime) -> AppResult<String> {
+    let catalog = client
+        .get(format!("{LM_STUDIO_BASE_URL}/api/v1/models"))
+        .send()
+        .await
+        .map_err(|_| AppError::Message("LM Studio is not running. Start its local server on port 1234, then try @qwen again.".into()))?
+        .error_for_status()
+        .map_err(|error| AppError::Message(format!("LM Studio model lookup failed: {error}")))?
+        .json::<LmModelCatalog>()
+        .await
+        .map_err(|error| AppError::Message(format!("LM Studio returned an unreadable model list: {error}")))?;
+    let model = catalog.models.into_iter().find(is_qwen_35_4b).ok_or_else(|| {
+        AppError::Message("Qwen 3.5 4B is not downloaded in LM Studio. LeetJournal will not fall back to another model; download 4B and try again.".into())
+    })?;
+
+    let instance_id = if let Some(loaded) = model.loaded_instances.into_iter().next() {
+        loaded.id
+    } else {
+        let model_key = model.key;
+        client
+            .post(format!("{LM_STUDIO_BASE_URL}/api/v1/models/load"))
+            .json(&serde_json::json!({
+                "model": model_key,
+                "context_length": 8192,
+                "flash_attention": true
+            }))
+            .send()
+            .await
+            .map_err(|error| AppError::Message(format!("Could not load Qwen 3.5 4B: {error}")))?
+            .error_for_status()
+            .map_err(|error| {
+                AppError::Message(format!("LM Studio could not load Qwen 3.5 4B: {error}"))
+            })?
+            .json::<LmLoadResponse>()
+            .await
+            .map_err(|error| {
+                AppError::Message(format!(
+                    "LM Studio returned an unreadable load response: {error}"
+                ))
+            })?
+            .instance_id
+    };
+    *runtime.0.lock().unwrap() = Some(instance_id.clone());
+    Ok(instance_id)
 }
 
 fn leetcode_webview(app: &AppHandle, label: &str) -> AppResult<tauri::Webview> {
@@ -1231,7 +1315,11 @@ pub fn set_leetcode_webview_bounds(
 }
 
 #[tauri::command]
-pub async fn ask_qwen(prompt: String, on_token: Channel<String>) -> AppResult<()> {
+pub async fn ask_qwen(
+    prompt: String,
+    on_token: Channel<String>,
+    runtime: State<'_, QwenRuntime>,
+) -> AppResult<()> {
     let prompt = prompt.trim();
     if prompt.is_empty() {
         return Err(AppError::Message("Type a question after @qwen".into()));
@@ -1244,26 +1332,41 @@ pub async fn ask_qwen(prompt: String, on_token: Channel<String>) -> AppResult<()
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()
-        .map_err(|e| AppError::Message(format!("Could not create the local AI client: {e}")))?;
-    let models=client.get("http://127.0.0.1:1234/v1/models").send().await.map_err(|_|AppError::Message("LM Studio is not running. Start its local server on port 1234, then try @qwen again.".into()))?.error_for_status().map_err(|e|AppError::Message(format!("LM Studio model lookup failed: {e}")))?.json::<LmModels>().await.map_err(|e|AppError::Message(format!("LM Studio returned an unreadable model list: {e}")))?;
-    let model=models.data.iter().find(|m|{let id=m.id.to_lowercase();id.contains("qwen")&&(id.contains("3.5")||id.contains("3_5")||id.contains("qwen3.5"))&&(id.contains("4b")||id.contains("4-b"))}).ok_or_else(||AppError::Message("Qwen 3.5 4B is not loaded in LM Studio. LeetJournal will not fall back to another model; load 4B in the Developer tab and try again.".into()))?;
-    let response=client.post("http://127.0.0.1:1234/api/v1/chat").json(&serde_json::json!({"model":model.id,"input":prompt,"temperature":0.4,"max_output_tokens":768,"reasoning":"off","stream":true})).send().await.map_err(|e|AppError::Message(format!("Could not start Qwen inference: {e}")))?.error_for_status().map_err(|e|AppError::Message(format!("Qwen inference failed: {e}")))?;
+        .map_err(|error| {
+            AppError::Message(format!("Could not create the local AI client: {error}"))
+        })?;
+    let instance_id = qwen_instance(&client, &runtime).await?;
+    let response = client
+        .post(format!("{LM_STUDIO_BASE_URL}/api/v1/chat"))
+        .json(&serde_json::json!({
+            "model": instance_id,
+            "input": prompt,
+            "temperature": 0.4,
+            "max_output_tokens": 768,
+            "reasoning": "off",
+            "stream": true
+        }))
+        .send()
+        .await
+        .map_err(|error| AppError::Message(format!("Could not start Qwen inference: {error}")))?
+        .error_for_status()
+        .map_err(|error| AppError::Message(format!("Qwen inference failed: {error}")))?;
     let mut stream = response.bytes_stream();
     let mut buffer = String::new();
     while let Some(chunk) = stream.next().await {
-        let chunk =
-            chunk.map_err(|e| AppError::Message(format!("Qwen stream interrupted: {e}")))?;
+        let chunk = chunk
+            .map_err(|error| AppError::Message(format!("Qwen stream interrupted: {error}")))?;
         buffer.push_str(&String::from_utf8_lossy(&chunk));
         while let Some(end) = buffer.find('\n') {
             let line = buffer[..end].trim().to_string();
             buffer.drain(..=end);
             if let Some(data) = line.strip_prefix("data: ") {
                 if let Ok(value) = serde_json::from_str::<serde_json::Value>(data) {
-                    if value.get("type").and_then(|v| v.as_str()) == Some("chat.end") {
+                    if value.get("type").and_then(|value| value.as_str()) == Some("chat.end") {
                         return Ok(());
                     }
-                    if value.get("type").and_then(|v| v.as_str()) == Some("message.delta") {
-                        if let Some(token) = value.get("content").and_then(|v| v.as_str()) {
+                    if value.get("type").and_then(|value| value.as_str()) == Some("message.delta") {
+                        if let Some(token) = value.get("content").and_then(|value| value.as_str()) {
                             if !token.is_empty() {
                                 let _ = on_token.send(token.to_string());
                             }
@@ -1274,4 +1377,37 @@ pub async fn ask_qwen(prompt: String, on_token: Channel<String>) -> AppResult<()
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn unload_qwen(runtime: State<'_, QwenRuntime>) -> AppResult<()> {
+    let Some(instance_id) = runtime.0.lock().unwrap().clone() else {
+        return Ok(());
+    };
+    let response = reqwest::Client::new()
+        .post(format!("{LM_STUDIO_BASE_URL}/api/v1/models/unload"))
+        .json(&serde_json::json!({ "instance_id": instance_id }))
+        .send()
+        .await;
+
+    match response {
+        Ok(response) if response.status().is_success() || response.status().as_u16() == 404 => {
+            let mut loaded = runtime.0.lock().unwrap();
+            if loaded.as_deref() == Some(instance_id.as_str()) {
+                *loaded = None;
+            }
+            Ok(())
+        }
+        Ok(response) => Err(AppError::Message(format!(
+            "LM Studio could not unload Qwen: HTTP {}",
+            response.status()
+        ))),
+        Err(error) if error.is_connect() => {
+            *runtime.0.lock().unwrap() = None;
+            Ok(())
+        }
+        Err(error) => Err(AppError::Message(format!(
+            "Could not unload Qwen from LM Studio: {error}"
+        ))),
+    }
 }
