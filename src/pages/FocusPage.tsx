@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Check,
   ExternalLink,
@@ -11,7 +11,7 @@ import {
   Pause,
   Play,
 } from 'lucide-react'
-import { api } from '../api'
+import { useFocusNotebook } from '../hooks/useFocusNotebook'
 import type { AppSettings, FocusContext } from '../domain'
 import { LeetCodeWorkspace } from '../LeetCodeWorkspace'
 import { Plant } from '../components/Plant'
@@ -38,68 +38,19 @@ function EmptyFocus({ onBack }: { onBack: () => void }) {
 
 export function FocusPage({ context, settings, onPause, onFinish, onBack, obscured = false }: FocusPageProps) {
   const [now, setNow] = useState(Date.now())
-  const [notes, setNotes] = useState(context?.attempt.notes ?? '')
   const [revealed, setRevealed] = useState(0)
-  const [qwenRunning, setQwenRunning] = useState(false)
-  const [qwenStatus, setQwenStatus] = useState('Preparing Qwen…')
-  const [lastQwenBlock, setLastQwenBlock] = useState('')
-  const [noteSaveFailed, setNoteSaveFailed] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(() => localStorage.getItem('leetjournal.focus.tools') !== 'closed')
   const [activeTool, setActiveTool] = useState<'notes' | 'hints'>('notes')
   const [webviewLabel, setWebviewLabel] = useState('')
-  const notesRef = useRef(notes)
-  const notesInputRef = useRef<HTMLTextAreaElement>(null)
-  const followOutputRef = useRef(true)
-  const requestRef = useRef(0)
-  const runningRef = useRef(false)
-  const stoppedRef = useRef(false)
-  const saveChainRef = useRef<Promise<void>>(Promise.resolve())
-
-  const saveNotes = (attemptId: number, value: string) => {
-    saveChainRef.current = saveChainRef.current
-      .catch(() => {})
-      .then(() => api.notes(attemptId, value))
-      .then(() => setNoteSaveFailed(false))
-      .catch(() => setNoteSaveFailed(true))
-    return saveChainRef.current
-  }
+  const {
+    notes, notesInputRef, qwenRunning, qwenStatus, noteSaveFailed, canClearQwen,
+    stopQwen, clearQwenOutput, retrySave, onNotesChange, onNotesScroll, onNotesKeyDown,
+  } = useFocusNotebook(context, webviewLabel, obscured)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    setNotes(context?.attempt.notes ?? '')
-    setLastQwenBlock('')
-    setNoteSaveFailed(false)
-    setQwenRunning(false)
-    runningRef.current = false
-    return () => {
-      requestRef.current += 1
-      if (runningRef.current) void api.stopQwen().catch(() => {})
-    }
-  }, [context?.attempt.id])
-
-  useEffect(() => { notesRef.current = notes }, [notes])
-
-  useEffect(() => {
-    if (qwenRunning && followOutputRef.current && notesInputRef.current) {
-      notesInputRef.current.scrollTop = notesInputRef.current.scrollHeight
-    }
-  }, [notes, qwenRunning])
-
-  useEffect(() => {
-    if (!context) return
-    const timer = setTimeout(() => { void saveNotes(context.attempt.id, notes) }, 500)
-    return () => clearTimeout(timer)
-  }, [notes, context?.attempt.id])
-
-  useEffect(() => {
-    if (!context) return
-    const attemptId = context.attempt.id
-    return () => { void saveNotes(attemptId, notesRef.current) }
-  }, [context?.attempt.id])
 
   if (!context) return <EmptyFocus onBack={onBack} />
 
@@ -114,68 +65,6 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
     const next = !current
     localStorage.setItem('leetjournal.focus.tools', next ? 'open' : 'closed')
     return next
-  })
-
-  const runQwen = async () => {
-    const line = notes.slice(notes.lastIndexOf('\n') + 1).trim()
-    const match = line.match(/^@(big-)?qwen\s+(.+)$/i)
-    if (!match || runningRef.current || obscured) return
-    const request = ++requestRef.current
-    const current = () => requestRef.current === request
-    runningRef.current = true
-    stoppedRef.current = false
-    followOutputRef.current = true
-    setQwenRunning(true)
-    setQwenStatus('Preparing Qwen…')
-    setLastQwenBlock('')
-    let block = ''
-    const append = (text: string) => {
-      if (!current()) return
-      block += text
-      notesRef.current += text
-      setNotes(notesRef.current)
-    }
-    try {
-      let prompt = match[2].trim()
-      if (match[1]) {
-        if (!webviewLabel) throw new Error('The LeetCode editor is still loading. Try @big-qwen again in a moment.')
-        const code = await api.leetcodeEditorCode(webviewLabel)
-        if (!current() || stoppedRef.current) return
-        if (!code.trim()) throw new Error('LeetJournal could not read the current editor code. Click inside the LeetCode editor, then try @big-qwen again.')
-        const beforeCommand = notes.slice(0, notes.lastIndexOf('\n') + 1).trim()
-        prompt = `You are a concise coding coach helping with the current LeetCode problem. Use the supplied context, but do not reveal a complete solution unless the user explicitly asks for one.\n\nProblem: ${attempt.problem.title}\nCategory: ${attempt.problem.category}\nDifficulty: ${attempt.problem.difficulty}\nURL: ${attempt.problem.leetcodeUrl}\n\nSession notes:\n${beforeCommand || '(none)'}\n\nCurrent editor code:\n--- CODE START ---\n${code.slice(0, 24000)}\n--- CODE END ---\n\nQuestion: ${match[2].trim()}`
-      }
-      append('\n\nQwen: ')
-      await api.askQwen(prompt, (token) => {
-        if (!current() || stoppedRef.current) return
-        setQwenStatus('Responding')
-        append(token)
-      })
-      append(stoppedRef.current ? '[Stopped]\n' : '\n')
-    } catch (error) {
-      append(`\n\n[Qwen: ${String(error).replace(/^Error:\s*/, '')}]\n`)
-    } finally {
-      if (current()) {
-        setLastQwenBlock(block)
-        runningRef.current = false
-        setQwenRunning(false)
-      }
-    }
-  }
-
-  const stopQwen = async () => {
-    stoppedRef.current = true
-    setQwenStatus('Stopping…')
-    try { await api.stopQwen() } catch {
-      stoppedRef.current = false
-      setQwenStatus('Couldn’t stop · retry')
-    }
-  }
-
-  const canClearQwen = Boolean(lastQwenBlock && notes.includes(lastQwenBlock))
-  const clearQwenOutput = () => setNotes((value) => {
-    const start = value.lastIndexOf(lastQwenBlock)
-    return start < 0 ? value : `${value.slice(0, start)}${value.slice(start + lastQwenBlock.length)}`.trimEnd()
   })
 
   return (
@@ -214,7 +103,7 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
                   <h3>Session notes</h3>
                   <div className="notes-actions">
                     {qwenRunning && <><span role="status"><LoaderCircle size={11} />{qwenStatus}</span><button type="button" onClick={() => void stopQwen()}>Stop</button></>}
-                    {noteSaveFailed && <button type="button" onClick={() => void saveNotes(attempt.id, notes)}>Retry save</button>}
+                    {noteSaveFailed && <button type="button" onClick={retrySave}>Retry save</button>}
                     {!qwenRunning && canClearQwen && <button type="button" onClick={clearQwenOutput}>Clear response</button>}
                   </div>
                 </div>
@@ -223,18 +112,9 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
                   aria-label="Session notes"
                   value={notes}
                   readOnly={qwenRunning}
-                  onChange={(event) => { notesRef.current = event.target.value; setNotes(event.target.value) }}
-                  onScroll={(event) => {
-                    const input = event.currentTarget
-                    followOutputRef.current = input.scrollHeight - input.scrollTop - input.clientHeight < 40
-                  }}
-                  onKeyDown={(event) => {
-                    const currentLine = event.currentTarget.value.slice(event.currentTarget.value.lastIndexOf('\n') + 1).trim()
-                    if (event.key === 'Enter' && !event.shiftKey && event.currentTarget.selectionStart === event.currentTarget.value.length && /^@(big-)?qwen\s+.+/i.test(currentLine)) {
-                      event.preventDefault()
-                      void runQwen()
-                    }
-                  }}
+                  onChange={onNotesChange}
+                  onScroll={onNotesScroll}
+                  onKeyDown={onNotesKeyDown}
                   placeholder="Write notes, ask @qwen, or use @big-qwen with problem + code context…"
                 />
                 <div className="qwen-commands"><span><b>@qwen</b> general question</span><span><b>@big-qwen</b> problem + notes + live code</span></div>

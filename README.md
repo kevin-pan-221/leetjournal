@@ -159,13 +159,16 @@ npm test
 src/
 ├── app/             navigation and page-level application types
 ├── components/      reusable presentation and dialogs
-├── hooks/           app data, timer, and keyboard behavior
+├── hooks/           app data, notebook persistence/inference, and keyboard behavior
 ├── pages/           Today, Focus, Library, Journal, Reviews, and Settings
+├── utils/           dates, errors, and Qwen command/prompt helpers
 ├── api.ts           the single frontend ↔ Tauri IPC boundary
 └── domain.ts        shared frontend domain contracts
 
 src-tauri/src/
-├── commands.rs      validated application operations
+├── commands.rs      validated SQLite-backed application operations
+├── qwen/            LM Studio lifecycle, inference, and stream decoding
+├── workspace.rs     embedded LeetCode geometry, editor access, and shortcut commands
 ├── db.rs            SQLite schema, migrations, and curriculum seeding
 ├── models.rs        serialized native domain models
 ├── error.rs         typed command errors

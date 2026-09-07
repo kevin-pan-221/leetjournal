@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { LoaderCircle } from 'lucide-react'
 import { api } from './api'
+import { errorMessage } from './utils/errors'
 import type { FinishAttemptInput, Problem } from './domain'
 import type { Page } from './app/page'
 import { GardenFocus, GardenPage, gardenStageName } from './Garden'
@@ -53,7 +54,7 @@ export default function App() {
   }, [focus, page, logging])
 
   const reportActionError = (actionError: unknown) =>
-    setToast(String(actionError).replace(/^Error:\s*/, ''))
+    setToast(errorMessage(actionError))
 
   const releaseQwen = async () => {
     try { await api.unloadQwen() } catch (actionError) { reportActionError(actionError) }

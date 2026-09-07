@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Trash2, X } from 'lucide-react'
 import { api } from '../api'
+import { errorMessage } from '../utils/errors'
 import type { CreateBookInput, ProblemBook, ProblemOverview } from '../domain'
 
 interface BookEditorProps {
@@ -33,7 +34,7 @@ export function BookEditor({ book, items, onClose, onUpdated, onItemsChanged, on
     setBusy(true)
     setError('')
     try { await action() } catch (actionError) {
-      setError(String(actionError).replace(/^Error:\s*/, ''))
+      setError(errorMessage(actionError))
     } finally { setBusy(false) }
   }
 

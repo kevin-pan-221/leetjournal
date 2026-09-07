@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, ChevronRight, Pencil, Play, Search, Sprout, X } from 'lucide-react'
 import { api } from '../api'
+import { errorMessage } from '../utils/errors'
 import type { JournalEntry, Problem, ProblemBook, ProblemOverview } from '../domain'
 import { BookEditor } from '../components/BookEditor'
 import { Card, Chip, PageHeader } from '../components/ui'
@@ -88,7 +89,7 @@ export function LibraryPage({ books, entries, onStart, onSetToday, onReload }: L
     setOpenBook(book)
     setItems([])
     try { await loadItems(book) } catch (loadError) {
-      setError(String(loadError).replace(/^Error:\s*/, ''))
+      setError(errorMessage(loadError))
     }
   }
 
@@ -115,7 +116,7 @@ export function LibraryPage({ books, entries, onStart, onSetToday, onReload }: L
       await onReload()
       await open(created)
       setEditing(true)
-    } catch (createError) { setError(String(createError).replace(/^Error:\s*/, '')) }
+    } catch (createError) { setError(errorMessage(createError)) }
   }
 
   return (
