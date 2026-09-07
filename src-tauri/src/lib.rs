@@ -2,7 +2,8 @@ mod commands;
 mod db;
 mod error;
 mod models;
-mod qwen_stream;
+mod qwen;
+mod workspace;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -74,7 +75,7 @@ pub fn run() {
         .setup(|app| {
             let db = db::initialize(app.handle())?;
             app.manage(db);
-            app.manage(commands::QwenRuntime::default());
+            app.manage(qwen::QwenRuntime::default());
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -105,12 +106,12 @@ pub fn run() {
             commands::remove_book_problem,
             commands::delete_problem_book,
             commands::get_book_problems,
-            commands::ask_qwen,
-            commands::stop_qwen,
-            commands::unload_qwen,
-            commands::get_leetcode_editor_code,
-            commands::set_focus_shortcut_enabled,
-            commands::set_leetcode_webview_bounds
+            qwen::ask_qwen,
+            qwen::stop_qwen,
+            qwen::unload_qwen,
+            workspace::get_leetcode_editor_code,
+            workspace::set_focus_shortcut_enabled,
+            workspace::set_leetcode_webview_bounds
         ])
         .run(tauri::generate_context!())
         .expect("error while running LeetJournal");
