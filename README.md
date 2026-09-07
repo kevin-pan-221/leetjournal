@@ -101,6 +101,8 @@ Press <kbd>Enter</kbd> to stream the response into the notebook. Use <kbd>Shift<
 
 LeetJournal requires a downloaded model whose LM Studio identifier contains Qwen 3.5 and 4B. It does not silently fall back to another model. The app loads that model on the first Qwen request in a focus session and unloads it when you leave or finish the session. Inference uses the local LM Studio server with reasoning disabled by default.
 
+Notes show **Preparing Qwen…** during the first request, then **Responding** as text arrives. Use **Stop** to keep a partial answer, or **Clear response** to remove the latest answer. Output follows along as it streams; scroll upward to read without being pulled back down. If you stop or leave during model loading, LeetJournal waits for the load to settle before cancelling inference and, when leaving, releasing the model.
+
 ## Everyday workflow
 
 1. Pick the warm-up or main problem from **Today's Plan**.

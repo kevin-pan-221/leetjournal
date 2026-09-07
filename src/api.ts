@@ -44,6 +44,7 @@ export const api = {
   bookProblems: (bookId:string) => invoke<ProblemOverview[]>('get_book_problems',{bookId}),
   askQwen: async (prompt:string,onToken:(token:string)=>void) => {const onTokenChannel=new Channel<string>();onTokenChannel.onmessage=onToken;await invoke('ask_qwen',{prompt,onToken:onTokenChannel})},
   unloadQwen: () => invoke('unload_qwen'),
+  stopQwen: () => invoke<void>('stop_qwen'),
   leetcodeEditorCode: (webviewLabel:string) => invoke<string>('get_leetcode_editor_code',{webviewLabel}),
   setFocusShortcutEnabled: (enabled:boolean) => invoke('set_focus_shortcut_enabled',{enabled}),
 }

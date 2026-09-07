@@ -4,7 +4,11 @@ use crate::{
     models::*,
 };
 use chrono::{Datelike, Duration, Local, Utc};
-use futures_util::StreamExt;
+use futures_util::{
+    future::{AbortHandle, Abortable},
+    lock::Mutex as AsyncMutex,
+    StreamExt,
+};
 use rusqlite::{params, OptionalExtension};
 use std::sync::Mutex;
 use tauri::{ipc::Channel, AppHandle, Manager, State};
@@ -1122,7 +1126,103 @@ pub fn get_book_problems(book_id: String, db: State<Db>) -> AppResult<Vec<Proble
 const LM_STUDIO_BASE_URL: &str = "http://127.0.0.1:1234";
 
 #[derive(Default)]
-pub struct QwenRuntime(Mutex<Option<String>>);
+pub struct QwenRuntime {
+    loaded: AsyncMutex<Option<String>>,
+    control: Mutex<QwenControl>,
+}
+
+#[derive(Default)]
+struct QwenControl {
+    abort: Option<AbortHandle>,
+    releasing: usize,
+}
+
+// Block new requests until all pending releases finish, including a release
+// queued while LM Studio is still loading the model.
+struct QwenRelease<'a>(&'a QwenRuntime);
+
+impl Drop for QwenRelease<'_> {
+    fn drop(&mut self) {
+        self.0.control.lock().unwrap().releasing -= 1;
+    }
+}
+
+impl QwenRuntime {
+    fn begin_request(
+        &self,
+    ) -> AppResult<(
+        futures_util::lock::MutexGuard<'_, Option<String>>,
+        futures_util::future::AbortRegistration,
+    )> {
+        let mut control = self.control.lock().unwrap();
+        if control.releasing > 0 {
+            return Err(AppError::Message(
+                "Qwen is being released. Try again in a moment.".into(),
+            ));
+        }
+        let loaded = self.loaded.try_lock().ok_or_else(|| {
+            AppError::Message(
+                "Qwen is already answering. Stop that response before asking again.".into(),
+            )
+        })?;
+        let (abort, registration) = AbortHandle::new_pair();
+        control.abort = Some(abort);
+        Ok((loaded, registration))
+    }
+
+    fn begin_release(&self) -> QwenRelease<'_> {
+        let mut control = self.control.lock().unwrap();
+        control.releasing += 1;
+        if let Some(abort) = &control.abort {
+            abort.abort();
+        }
+        QwenRelease(self)
+    }
+}
+
+#[cfg(test)]
+mod qwen_lifecycle_tests {
+    use super::*;
+
+    #[test]
+    fn leaving_during_load_waits_for_instance_and_prevents_inference() {
+        tauri::async_runtime::block_on(async {
+            let runtime = QwenRuntime::default();
+            let (mut loading, registration) = runtime.begin_request().unwrap();
+            assert!(runtime.begin_request().is_err());
+            let release = runtime.begin_release();
+            assert!(runtime.begin_request().is_err());
+            let mut pending_release = Box::pin(runtime.loaded.lock());
+            assert!(futures_util::poll!(&mut pending_release).is_pending());
+
+            // LM Studio completes a load after the user has already left.
+            *loading = Some("qwen-test-instance".into());
+            let mut inference_started = false;
+            let result = Abortable::new(async { inference_started = true }, registration).await;
+            assert!(result.is_err());
+            assert!(!inference_started);
+            drop(loading);
+
+            let mut loaded = pending_release.await;
+            assert_eq!(loaded.as_deref(), Some("qwen-test-instance"));
+            *loaded = None;
+            drop(loaded);
+            drop(release);
+            assert!(runtime.begin_request().is_ok());
+        });
+    }
+
+    #[test]
+    fn multiple_releases_keep_new_requests_blocked_until_all_finish() {
+        let runtime = QwenRuntime::default();
+        let first = runtime.begin_release();
+        let second = runtime.begin_release();
+        drop(first);
+        assert!(runtime.begin_request().is_err());
+        drop(second);
+        assert!(runtime.begin_request().is_ok());
+    }
+}
 
 #[derive(serde::Deserialize)]
 struct LmModelCatalog {
@@ -1165,7 +1265,7 @@ fn is_qwen_35_4b(model: &LmModel) -> bool {
         && (identity.contains("4b") || identity.contains("4-b") || identity.contains("4 b"))
 }
 
-async fn qwen_instance(client: &reqwest::Client, runtime: &QwenRuntime) -> AppResult<String> {
+async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) -> AppResult<String> {
     let catalog = client
         .get(format!("{LM_STUDIO_BASE_URL}/api/v1/models"))
         .send()
@@ -1207,7 +1307,7 @@ async fn qwen_instance(client: &reqwest::Client, runtime: &QwenRuntime) -> AppRe
             })?
             .instance_id
     };
-    *runtime.0.lock().unwrap() = Some(instance_id.clone());
+    *loaded = Some(instance_id.clone());
     Ok(instance_id)
 }
 
@@ -1335,7 +1435,28 @@ pub async fn ask_qwen(
         .map_err(|error| {
             AppError::Message(format!("Could not create the local AI client: {error}"))
         })?;
-    let instance_id = qwen_instance(&client, &runtime).await?;
+    let (mut loaded, registration) = runtime.begin_request()?;
+    // Finish loading before release; cancelling the HTTP load can leave an
+    // instance loading in LM Studio without returning its identifier to us.
+    let result = match qwen_instance(&client, &mut loaded).await {
+        Ok(instance_id) => Abortable::new(
+            stream_qwen(&client, &instance_id, prompt, &on_token),
+            registration,
+        )
+        .await
+        .unwrap_or(Ok(())),
+        Err(error) => Err(error),
+    };
+    runtime.control.lock().unwrap().abort = None;
+    result
+}
+
+async fn stream_qwen(
+    client: &reqwest::Client,
+    instance_id: &str,
+    prompt: &str,
+    on_token: &Channel<String>,
+) -> AppResult<()> {
     let response = client
         .post(format!("{LM_STUDIO_BASE_URL}/api/v1/chat"))
         .json(&serde_json::json!({
@@ -1352,39 +1473,41 @@ pub async fn ask_qwen(
         .error_for_status()
         .map_err(|error| AppError::Message(format!("Qwen inference failed: {error}")))?;
     let mut stream = response.bytes_stream();
-    let mut buffer = String::new();
+    let mut decoder = crate::qwen_stream::QwenStream::default();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk
             .map_err(|error| AppError::Message(format!("Qwen stream interrupted: {error}")))?;
-        buffer.push_str(&String::from_utf8_lossy(&chunk));
-        while let Some(end) = buffer.find('\n') {
-            let line = buffer[..end].trim().to_string();
-            buffer.drain(..=end);
-            if let Some(data) = line.strip_prefix("data: ") {
-                if let Ok(value) = serde_json::from_str::<serde_json::Value>(data) {
-                    if value.get("type").and_then(|value| value.as_str()) == Some("chat.end") {
-                        return Ok(());
-                    }
-                    if value.get("type").and_then(|value| value.as_str()) == Some("message.delta") {
-                        if let Some(token) = value.get("content").and_then(|value| value.as_str()) {
-                            if !token.is_empty() {
-                                let _ = on_token.send(token.to_string());
-                            }
-                        }
-                    }
-                }
-            }
+        if decoder.push(&chunk, |token| {
+            on_token
+                .send(token)
+                .map_err(|error| AppError::Message(error.to_string()))
+        })? {
+            return Ok(());
         }
     }
-    Ok(())
+    Err(AppError::Message(
+        "Qwen disconnected before finishing. Your partial response is kept; try again.".into(),
+    ))
+}
+
+#[tauri::command]
+pub fn stop_qwen(runtime: State<'_, QwenRuntime>) {
+    if let Some(abort) = &runtime.control.lock().unwrap().abort {
+        abort.abort();
+    }
 }
 
 #[tauri::command]
 pub async fn unload_qwen(runtime: State<'_, QwenRuntime>) -> AppResult<()> {
-    let Some(instance_id) = runtime.0.lock().unwrap().clone() else {
+    let _release = runtime.begin_release();
+    let mut loaded = runtime.loaded.lock().await;
+    let Some(instance_id) = loaded.as_ref() else {
         return Ok(());
     };
-    let response = reqwest::Client::new()
+    let response = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|error| AppError::Message(error.to_string()))?
         .post(format!("{LM_STUDIO_BASE_URL}/api/v1/models/unload"))
         .json(&serde_json::json!({ "instance_id": instance_id }))
         .send()
@@ -1392,10 +1515,7 @@ pub async fn unload_qwen(runtime: State<'_, QwenRuntime>) -> AppResult<()> {
 
     match response {
         Ok(response) if response.status().is_success() || response.status().as_u16() == 404 => {
-            let mut loaded = runtime.0.lock().unwrap();
-            if loaded.as_deref() == Some(instance_id.as_str()) {
-                *loaded = None;
-            }
+            *loaded = None;
             Ok(())
         }
         Ok(response) => Err(AppError::Message(format!(
@@ -1403,7 +1523,7 @@ pub async fn unload_qwen(runtime: State<'_, QwenRuntime>) -> AppResult<()> {
             response.status()
         ))),
         Err(error) if error.is_connect() => {
-            *runtime.0.lock().unwrap() = None;
+            *loaded = None;
             Ok(())
         }
         Err(error) => Err(AppError::Message(format!(

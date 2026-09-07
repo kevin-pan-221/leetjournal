@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod error;
 mod models;
+mod qwen_stream;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -105,6 +106,7 @@ pub fn run() {
             commands::delete_problem_book,
             commands::get_book_problems,
             commands::ask_qwen,
+            commands::stop_qwen,
             commands::unload_qwen,
             commands::get_leetcode_editor_code,
             commands::set_focus_shortcut_enabled,
