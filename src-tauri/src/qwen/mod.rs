@@ -4,23 +4,30 @@ use futures_util::{
     lock::Mutex as AsyncMutex,
     StreamExt,
 };
-use std::sync::Mutex;
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tauri::{ipc::Channel, State};
 
 mod stream;
 
 const LM_STUDIO_BASE_URL: &str = "http://127.0.0.1:1234";
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct QwenRuntime {
-    loaded: AsyncMutex<Option<String>>,
-    control: Mutex<QwenControl>,
+    loaded: Arc<AsyncMutex<Option<String>>>,
+    control: Arc<Mutex<QwenControl>>,
+    client: reqwest::Client,
 }
 
 #[derive(Default)]
 struct QwenControl {
     abort: Option<AbortHandle>,
     releasing: usize,
+    idle_abort: Option<AbortHandle>,
+    generation: u64,
 }
 
 // Block new requests until all pending releases finish, including a release
@@ -52,6 +59,10 @@ impl QwenRuntime {
             )
         })?;
         let (abort, registration) = AbortHandle::new_pair();
+        control.generation = control.generation.wrapping_add(1);
+        if let Some(idle) = control.idle_abort.take() {
+            idle.abort();
+        }
         control.abort = Some(abort);
         Ok((loaded, registration))
     }
@@ -59,10 +70,57 @@ impl QwenRuntime {
     fn begin_release(&self) -> QwenRelease<'_> {
         let mut control = self.control.lock().unwrap();
         control.releasing += 1;
+        control.generation = control.generation.wrapping_add(1);
+        if let Some(idle) = control.idle_abort.take() {
+            idle.abort();
+        }
         if let Some(abort) = &control.abort {
             abort.abort();
         }
         QwenRelease(self)
+    }
+
+    fn schedule_idle_release(&self, delay: Duration) {
+        let mut control = self.control.lock().unwrap();
+        if control.releasing > 0 {
+            return;
+        }
+        if let Some(idle) = control.idle_abort.take() {
+            idle.abort();
+        }
+        let generation = control.generation;
+        let (abort, registration) = AbortHandle::new_pair();
+        control.idle_abort = Some(abort);
+        let runtime = self.clone();
+        tauri::async_runtime::spawn(async move {
+            if Abortable::new(tokio::time::sleep(delay), registration)
+                .await
+                .is_err()
+            {
+                return;
+            }
+            // Check the generation and acquire the model lock atomically with
+            // respect to starting a request. An old timer cannot evict a new one.
+            let Some(mut loaded) = runtime.idle_model(generation) else {
+                return;
+            };
+            if let Err(error) = release_instance(&runtime.client, &mut loaded).await {
+                eprintln!("Qwen idle release failed: {error}");
+            }
+        });
+    }
+
+    fn idle_model(
+        &self,
+        generation: u64,
+    ) -> Option<futures_util::lock::MutexGuard<'_, Option<String>>> {
+        let mut control = self.control.lock().unwrap();
+        if control.generation != generation || control.releasing > 0 {
+            return None;
+        }
+        let loaded = self.loaded.try_lock()?;
+        control.idle_abort = None;
+        Some(loaded)
     }
 }
 
@@ -107,6 +165,61 @@ mod qwen_lifecycle_tests {
         assert!(runtime.begin_request().is_err());
         drop(second);
         assert!(runtime.begin_request().is_ok());
+    }
+
+    #[test]
+    fn stale_idle_timer_cannot_release_a_new_request() {
+        let runtime = QwenRuntime::default();
+        let old_generation = runtime.control.lock().unwrap().generation;
+        let (loaded, _) = runtime.begin_request().unwrap();
+        assert!(runtime.idle_model(old_generation).is_none());
+        let current_generation = runtime.control.lock().unwrap().generation;
+        assert!(runtime.idle_model(current_generation).is_none());
+        drop(loaded);
+        assert!(runtime.idle_model(old_generation).is_none());
+        assert!(runtime.idle_model(current_generation).is_some());
+    }
+
+    #[test]
+    fn follow_up_cancels_the_pending_idle_timer() {
+        tauri::async_runtime::block_on(async {
+            let runtime = QwenRuntime::default();
+            runtime.schedule_idle_release(Duration::from_secs(60));
+            let idle = runtime.control.lock().unwrap().idle_abort.clone().unwrap();
+            let (_loaded, _) = runtime.begin_request().unwrap();
+            assert!(idle.is_aborted());
+            assert!(runtime.control.lock().unwrap().idle_abort.is_none());
+        });
+    }
+
+    #[test]
+    #[ignore = "requires local LM Studio; loads and unloads Qwen 4B"]
+    fn live_model_is_released_by_idle_timer() {
+        tauri::async_runtime::block_on(async {
+            let runtime = QwenRuntime::default();
+            {
+                let (mut loaded, _) = runtime.begin_request().unwrap();
+                qwen_instance(&runtime.client, &mut loaded).await.unwrap();
+            }
+            runtime.schedule_idle_release(IDLE_TIMEOUT);
+            eprintln!("Qwen loaded; waiting for the production 60-second idle timeout.");
+            tokio::time::sleep(IDLE_TIMEOUT + Duration::from_secs(2)).await;
+            assert!(runtime.loaded.lock().await.is_none());
+            let catalog = runtime
+                .client
+                .get(format!("{LM_STUDIO_BASE_URL}/api/v1/models"))
+                .send()
+                .await
+                .unwrap()
+                .json::<LmModelCatalog>()
+                .await
+                .unwrap();
+            assert!(catalog
+                .models
+                .iter()
+                .filter(|model| is_qwen_35_4b(model))
+                .all(|model| model.loaded_instances.is_empty()));
+        });
     }
 }
 
@@ -154,6 +267,7 @@ fn is_qwen_35_4b(model: &LmModel) -> bool {
 async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) -> AppResult<String> {
     let catalog = client
         .get(format!("{LM_STUDIO_BASE_URL}/api/v1/models"))
+        .timeout(Duration::from_secs(5))
         .send()
         .await
         .map_err(|_| AppError::Message("LM Studio is not running. Start its local server on port 1234, then try @qwen again.".into()))?
@@ -172,6 +286,7 @@ async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) ->
         let model_key = model.key;
         client
             .post(format!("{LM_STUDIO_BASE_URL}/api/v1/models/load"))
+            .timeout(Duration::from_secs(120))
             .json(&serde_json::json!({
                 "model": model_key,
                 "context_length": 8192,
@@ -212,18 +327,13 @@ pub async fn ask_qwen(
             "That Qwen request is too large. Keep it under 100 KB.".into(),
         ));
     }
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .map_err(|error| {
-            AppError::Message(format!("Could not create the local AI client: {error}"))
-        })?;
+    let client = &runtime.client;
     let (mut loaded, registration) = runtime.begin_request()?;
     // Finish loading before release; cancelling the HTTP load can leave an
     // instance loading in LM Studio without returning its identifier to us.
-    let result = match qwen_instance(&client, &mut loaded).await {
+    let result = match qwen_instance(client, &mut loaded).await {
         Ok(instance_id) => Abortable::new(
-            stream_qwen(&client, &instance_id, prompt, &on_token),
+            stream_qwen(client, &instance_id, prompt, &on_token),
             registration,
         )
         .await
@@ -231,6 +341,9 @@ pub async fn ask_qwen(
         Err(error) => Err(error),
     };
     runtime.control.lock().unwrap().abort = None;
+    if loaded.is_some() {
+        runtime.schedule_idle_release(IDLE_TIMEOUT);
+    }
     result
 }
 
@@ -242,6 +355,7 @@ async fn stream_qwen(
 ) -> AppResult<()> {
     let response = client
         .post(format!("{LM_STUDIO_BASE_URL}/api/v1/chat"))
+        .timeout(Duration::from_secs(120))
         .json(&serde_json::json!({
             "model": instance_id,
             "input": prompt,
@@ -282,16 +396,22 @@ pub fn stop_qwen(runtime: State<'_, QwenRuntime>) {
 
 #[tauri::command]
 pub async fn unload_qwen(runtime: State<'_, QwenRuntime>) -> AppResult<()> {
+    release_runtime(&runtime).await
+}
+
+pub async fn release_runtime(runtime: &QwenRuntime) -> AppResult<()> {
     let _release = runtime.begin_release();
     let mut loaded = runtime.loaded.lock().await;
+    release_instance(&runtime.client, &mut loaded).await
+}
+
+async fn release_instance(client: &reqwest::Client, loaded: &mut Option<String>) -> AppResult<()> {
     let Some(instance_id) = loaded.as_ref() else {
         return Ok(());
     };
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|error| AppError::Message(error.to_string()))?
+    let response = client
         .post(format!("{LM_STUDIO_BASE_URL}/api/v1/models/unload"))
+        .timeout(Duration::from_secs(15))
         .json(&serde_json::json!({ "instance_id": instance_id }))
         .send()
         .await;

@@ -46,6 +46,7 @@ fn install_focus_escape_monitor(app: AppHandle<Wry>, enabled: Arc<AtomicBool>) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let quitting = AtomicBool::new(false);
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .menu(|app| {
@@ -113,6 +114,25 @@ pub fn run() {
             workspace::set_focus_shortcut_enabled,
             workspace::set_leetcode_webview_bounds
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running LeetJournal");
+        .build(tauri::generate_context!())
+        .expect("error while building LeetJournal")
+        .run(move |app, event| {
+            if let tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                api.prevent_exit();
+                if quitting.swap(true, Ordering::Relaxed) {
+                    return;
+                }
+                let runtime = app.state::<qwen::QwenRuntime>().inner().clone();
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = qwen::release_runtime(&runtime).await {
+                        eprintln!("Qwen release on quit failed: {error}");
+                    }
+                    app.exit(0);
+                });
+            }
+        });
 }
