@@ -100,8 +100,9 @@ fn setting(conn: &rusqlite::Connection, key: &str, fallback: &str) -> String {
     .unwrap_or_else(|_| fallback.into())
 }
 
-fn read_settings(conn: &rusqlite::Connection) -> AppSettings {
+pub(crate) fn read_settings(conn: &rusqlite::Connection) -> AppSettings {
     AppSettings {
+        local_model: setting(conn, "local_model", ""),
         display_name: setting(conn, "display_name", "Coder"),
         daily_focus_minutes: setting(conn, "daily_focus_minutes", "30")
             .parse()
@@ -798,6 +799,9 @@ pub fn get_settings(db: State<Db>) -> AppResult<AppSettings> {
 
 #[tauri::command]
 pub fn save_settings(settings: AppSettings, db: State<Db>) -> AppResult<AppSettings> {
+    if settings.local_model.len() > 1024 {
+        return Err(AppError::Message("Model identifier is too long".into()));
+    }
     if settings.display_name.trim().is_empty() {
         return Err(AppError::Message("Display name cannot be empty".into()));
     }
@@ -813,6 +817,7 @@ pub fn save_settings(settings: AppSettings, db: State<Db>) -> AppResult<AppSetti
     let mut conn = db.0.lock().unwrap();
     let tx = conn.transaction()?;
     let values = [
+        ("local_model", settings.local_model.clone()),
         ("display_name", settings.display_name.trim().to_string()),
         (
             "daily_focus_minutes",

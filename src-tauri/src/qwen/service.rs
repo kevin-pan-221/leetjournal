@@ -34,7 +34,7 @@ fn cli_path() -> AppResult<PathBuf> {
         }
     }
     Err(AppError::Message(
-        "Install LM Studio's headless llmster service (including the lms CLI), then try again. No desktop window is needed. Expected ~/.lmstudio/bin/lms.".into(),
+        "Set up LM Studio first using the link in Settings → Local AI.".into(),
     ))
 }
 

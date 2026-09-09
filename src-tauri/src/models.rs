@@ -125,6 +125,8 @@ pub struct ReviewItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub local_model: String,
     pub display_name: String,
     pub daily_focus_minutes: i32,
     pub weekly_goal_days: i32,
@@ -138,6 +140,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            local_model: String::new(),
             display_name: "Coder".into(),
             daily_focus_minutes: 30,
             weekly_goal_days: 5,

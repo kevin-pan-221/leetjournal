@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { AppSettings } from '../domain'
 import { Card, PageHeader } from '../components/ui'
+import { LocalAiSettings } from '../components/LocalAiSettings'
+import { errorMessage } from '../utils/errors'
 
 interface SettingsPageProps {
   settings: AppSettings
@@ -23,6 +25,15 @@ function Toggle({ label, detail, checked, onChange }: {
 
 export function SettingsPage({ settings, onSave }: SettingsPageProps) {
   const [draft, setDraft] = useState(settings)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const save = async () => {
+    setSaving(true)
+    setSaveError('')
+    try { await onSave(draft) }
+    catch (error) { setSaveError(errorMessage(error)) }
+    finally { setSaving(false) }
+  }
   useEffect(() => setDraft(settings), [settings])
   const patch = <Key extends keyof AppSettings>(key: Key, value: AppSettings[Key]) =>
     setDraft((current) => ({ ...current, [key]: value }))
@@ -50,7 +61,9 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         <Toggle label="Plant animations" detail="Gentle movement while focusing" checked={draft.plantAnimations} onChange={(value) => patch('plantAnimations', value)} />
         <label><span>Theme<small>Keep things calm and comfortable</small></span><select value={draft.theme} onChange={(event) => patch('theme', event.target.value)}><option value="warm-garden">Warm garden</option><option value="system">System</option></select></label>
       </Card>
-      <button className="primary" onClick={() => onSave(draft)}>Save settings</button>
+      <LocalAiSettings value={draft.localModel} disabled={saving} onChange={(value) => patch('localModel', value)} />
+      {saveError && <p role="alert">{saveError}</p>}
+      <button className="primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save settings'}</button>
     </div>
   )
 }

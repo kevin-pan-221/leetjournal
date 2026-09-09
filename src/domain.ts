@@ -90,6 +90,7 @@ export interface Review {
 }
 
 export interface AppSettings {
+  localModel: string
   displayName: string
   dailyFocusMinutes: number
   weeklyGoalDays: number

@@ -20,8 +20,18 @@ export type * from './domain'
 
 const isTauri = () => '__TAURI_INTERNALS__' in window
 
+export interface ModelDownloadStatus {
+  status: 'downloading' | 'paused' | 'completed' | 'failed' | 'already_downloaded'
+  job_id: string | null
+  total_size_bytes: number | null
+  downloaded_bytes: number | null
+}
+
 export const api = {
   isTauri,
+  localModels: () => invoke<{ key: string; label: string; isDefault: boolean }[]>('list_local_models'),
+  downloadDefaultModel: () => invoke<ModelDownloadStatus>('download_default_model'),
+  modelDownloadStatus: () => invoke<ModelDownloadStatus | null>('default_model_download_status'),
   dashboard: () => invoke<Dashboard>('get_dashboard'),
   garden: () => invoke<GardenState>('get_garden_state'),
   start: (problemId: string, isReview = false) =>

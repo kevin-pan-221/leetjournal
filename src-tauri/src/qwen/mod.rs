@@ -10,6 +10,7 @@ use std::{
 };
 use tauri::{ipc::Channel, State};
 
+pub(crate) mod download;
 mod service;
 mod stream;
 
@@ -18,6 +19,7 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Default)]
 pub struct QwenRuntime {
+    download_job: Arc<AsyncMutex<Option<String>>>,
     loaded: Arc<AsyncMutex<Option<String>>>,
     control: Arc<Mutex<QwenControl>>,
     client: reqwest::Client,
@@ -130,6 +132,31 @@ mod qwen_lifecycle_tests {
     use super::*;
 
     #[test]
+    fn default_selection_is_specific_and_never_overrides_an_explicit_choice() {
+        let catalog = || {
+            serde_json::from_value::<LmModelCatalog>(serde_json::json!({
+            "models": [
+                {"type":"llm", "key":"other/model", "display_name":"Another model", "loaded_instances":[]},
+                {"type":"llm", "key":"qwen/qwen3.5-14b", "display_name":"Qwen 3.5 14B", "loaded_instances":[]},
+                {"type":"llm", "key":"local/qwen3.5-4b-gguf", "display_name":"Qwen 3.5 4B", "loaded_instances":[]}
+            ]
+        })).unwrap().models
+        };
+        assert_eq!(
+            choose_model(catalog(), "").unwrap().key,
+            "local/qwen3.5-4b-gguf"
+        );
+        assert_eq!(
+            choose_model(catalog(), "other/model").unwrap().key,
+            "other/model"
+        );
+        assert!(choose_model(catalog(), "missing/model").is_none());
+        let mut without_default = catalog();
+        without_default.pop();
+        assert!(choose_model(without_default, "").is_none());
+    }
+
+    #[test]
     fn leaving_during_load_waits_for_instance_and_prevents_inference() {
         tauri::async_runtime::block_on(async {
             let runtime = QwenRuntime::default();
@@ -198,9 +225,13 @@ mod qwen_lifecycle_tests {
     fn live_model_is_released_by_idle_timer() {
         tauri::async_runtime::block_on(async {
             let runtime = QwenRuntime::default();
+            let selected = std::env::var("LEETJOURNAL_TEST_MODEL")
+                .expect("Set LEETJOURNAL_TEST_MODEL to a downloaded model key");
             {
                 let (mut loaded, _) = runtime.begin_request().unwrap();
-                qwen_instance(&runtime.client, &mut loaded).await.unwrap();
+                qwen_instance(&runtime.client, &mut loaded, &selected)
+                    .await
+                    .unwrap();
             }
             runtime.schedule_idle_release(IDLE_TIMEOUT);
             eprintln!("Qwen loaded; waiting for the production 60-second idle timeout.");
@@ -218,7 +249,7 @@ mod qwen_lifecycle_tests {
             assert!(catalog
                 .models
                 .iter()
-                .filter(|model| is_qwen_35_4b(model))
+                .filter(|model| model.key == selected)
                 .all(|model| model.loaded_instances.is_empty()));
         });
     }
@@ -235,9 +266,19 @@ struct LmModel {
     model_type: String,
     key: String,
     display_name: String,
-    params_string: Option<String>,
+    max_context_length: Option<u32>,
+    capabilities: Option<LmCapabilities>,
     selected_variant: Option<String>,
     loaded_instances: Vec<LmLoadedInstance>,
+}
+
+#[derive(serde::Deserialize)]
+struct LmCapabilities {
+    reasoning: Option<LmReasoning>,
+}
+#[derive(serde::Deserialize)]
+struct LmReasoning {
+    allowed_options: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -250,22 +291,57 @@ struct LmLoadResponse {
     instance_id: String,
 }
 
-fn is_qwen_35_4b(model: &LmModel) -> bool {
-    let identity = format!(
-        "{} {} {} {}",
-        model.key,
-        model.display_name,
-        model.params_string.as_deref().unwrap_or_default(),
-        model.selected_variant.as_deref().unwrap_or_default()
-    )
-    .to_lowercase();
-    model.model_type == "llm"
-        && identity.contains("qwen")
-        && (identity.contains("3.5") || identity.contains("3_5") || identity.contains("qwen3.5"))
-        && (identity.contains("4b") || identity.contains("4-b") || identity.contains("4 b"))
+#[derive(serde::Serialize)]
+pub struct LocalModelOption {
+    key: String,
+    label: String,
+    #[serde(rename = "isDefault")]
+    is_default: bool,
 }
 
-async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) -> AppResult<String> {
+fn is_default_model(model: &LmModel) -> bool {
+    let name: String = format!("{} {}", model.key, model.display_name)
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect();
+    model.model_type == "llm" && name.contains("qwen354b")
+}
+
+fn choose_model(models: Vec<LmModel>, selected: &str) -> Option<LmModel> {
+    models.into_iter().find(|model| {
+        if selected.is_empty() {
+            is_default_model(model)
+        } else {
+            model.model_type == "llm" && model.key == selected
+        }
+    })
+}
+
+#[tauri::command]
+pub async fn list_local_models(
+    runtime: State<'_, QwenRuntime>,
+) -> AppResult<Vec<LocalModelOption>> {
+    let catalog = model_catalog(&runtime.client).await?;
+    let mut models: Vec<_> = catalog
+        .models
+        .into_iter()
+        .filter(|m| m.model_type == "llm")
+        .map(|m| LocalModelOption {
+            is_default: is_default_model(&m),
+            label: format!(
+                "{} · {}",
+                m.display_name,
+                m.selected_variant.as_deref().unwrap_or(&m.key)
+            ),
+            key: m.key,
+        })
+        .collect();
+    models.sort_by(|a, b| a.label.cmp(&b.label));
+    Ok(models)
+}
+
+async fn model_catalog(client: &reqwest::Client) -> AppResult<LmModelCatalog> {
     service::ensure_running(client).await?;
     let catalog = client
         .get(format!("{LM_STUDIO_BASE_URL}/api/v1/models"))
@@ -278,10 +354,35 @@ async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) ->
         .json::<LmModelCatalog>()
         .await
         .map_err(|error| AppError::Message(format!("LM Studio returned an unreadable model list: {error}")))?;
-    let model = catalog.models.into_iter().find(is_qwen_35_4b).ok_or_else(|| {
-        AppError::Message("Qwen 3.5 4B is not downloaded in LM Studio. LeetJournal will not fall back to another model; download 4B and try again.".into())
-    })?;
+    Ok(catalog)
+}
 
+async fn qwen_instance(
+    client: &reqwest::Client,
+    loaded: &mut Option<String>,
+    selected: &str,
+) -> AppResult<(String, bool)> {
+    let catalog = model_catalog(client).await?;
+    let model = choose_model(catalog.models, selected).ok_or_else(|| {
+        AppError::Message(if selected.is_empty() {
+            "Download Qwen 3.5 4B in Settings → Local AI to get started.".into()
+        } else {
+            "The selected model is unavailable. Choose another in Settings → Local AI.".into()
+        })
+    })?;
+    let reasoning_off = model
+        .capabilities
+        .as_ref()
+        .and_then(|c| c.reasoning.as_ref())
+        .is_some_and(|r| r.allowed_options.iter().any(|option| option == "off"));
+    if loaded.as_ref().is_some_and(|id| {
+        !model
+            .loaded_instances
+            .iter()
+            .any(|instance| &instance.id == id)
+    }) {
+        release_instance(client, loaded).await?;
+    }
     let instance_id = if let Some(loaded) = model.loaded_instances.into_iter().next() {
         loaded.id
     } else {
@@ -291,15 +392,19 @@ async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) ->
             .timeout(Duration::from_secs(120))
             .json(&serde_json::json!({
                 "model": model_key,
-                "context_length": 8192,
+                "context_length": model.max_context_length.unwrap_or(8192).clamp(1, 8192),
                 "flash_attention": true
             }))
             .send()
             .await
-            .map_err(|error| AppError::Message(format!("Could not load Qwen 3.5 4B: {error}")))?
+            .map_err(|error| {
+                AppError::Message(format!("Could not load the selected model: {error}"))
+            })?
             .error_for_status()
             .map_err(|error| {
-                AppError::Message(format!("LM Studio could not load Qwen 3.5 4B: {error}"))
+                AppError::Message(format!(
+                    "LM Studio could not load the selected model: {error}"
+                ))
             })?
             .json::<LmLoadResponse>()
             .await
@@ -311,7 +416,7 @@ async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) ->
             .instance_id
     };
     *loaded = Some(instance_id.clone());
-    Ok(instance_id)
+    Ok((instance_id, reasoning_off))
 }
 
 #[tauri::command]
@@ -319,6 +424,7 @@ pub async fn ask_qwen(
     prompt: String,
     on_token: Channel<String>,
     runtime: State<'_, QwenRuntime>,
+    db: State<'_, crate::db::Db>,
 ) -> AppResult<()> {
     let prompt = prompt.trim();
     if prompt.is_empty() {
@@ -329,13 +435,14 @@ pub async fn ask_qwen(
             "That Qwen request is too large. Keep it under 100 KB.".into(),
         ));
     }
+    let selected = crate::commands::read_settings(&db.0.lock().unwrap()).local_model;
     let client = &runtime.client;
     let (mut loaded, registration) = runtime.begin_request()?;
     // Finish loading before release; cancelling the HTTP load can leave an
     // instance loading in LM Studio without returning its identifier to us.
-    let result = match qwen_instance(client, &mut loaded).await {
-        Ok(instance_id) => Abortable::new(
-            stream_qwen(client, &instance_id, prompt, &on_token),
+    let result = match qwen_instance(client, &mut loaded, &selected).await {
+        Ok((instance_id, reasoning_off)) => Abortable::new(
+            stream_qwen(client, &instance_id, prompt, &on_token, reasoning_off),
             registration,
         )
         .await
@@ -354,18 +461,19 @@ async fn stream_qwen(
     instance_id: &str,
     prompt: &str,
     on_token: &Channel<String>,
+    reasoning_off: bool,
 ) -> AppResult<()> {
+    let mut body = serde_json::json!({
+        "model": instance_id, "input": prompt, "temperature": 0.4,
+        "max_output_tokens": 768, "stream": true
+    });
+    if reasoning_off {
+        body["reasoning"] = serde_json::json!("off");
+    }
     let response = client
         .post(format!("{LM_STUDIO_BASE_URL}/api/v1/chat"))
         .timeout(Duration::from_secs(120))
-        .json(&serde_json::json!({
-            "model": instance_id,
-            "input": prompt,
-            "temperature": 0.4,
-            "max_output_tokens": 768,
-            "reasoning": "off",
-            "stream": true
-        }))
+        .json(&body)
         .send()
         .await
         .map_err(|error| AppError::Message(format!("Could not start Qwen inference: {error}")))?
