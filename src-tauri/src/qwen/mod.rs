@@ -10,6 +10,7 @@ use std::{
 };
 use tauri::{ipc::Channel, State};
 
+mod service;
 mod stream;
 
 const LM_STUDIO_BASE_URL: &str = "http://127.0.0.1:1234";
@@ -265,6 +266,7 @@ fn is_qwen_35_4b(model: &LmModel) -> bool {
 }
 
 async fn qwen_instance(client: &reqwest::Client, loaded: &mut Option<String>) -> AppResult<String> {
+    service::ensure_running(client).await?;
     let catalog = client
         .get(format!("{LM_STUDIO_BASE_URL}/api/v1/models"))
         .timeout(Duration::from_secs(5))
