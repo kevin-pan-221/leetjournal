@@ -95,7 +95,7 @@ src-tauri/target/release/bundle/macos/LeetJournal.app
 LeetJournal's notes work without AI. To enable the local Qwen commands:
 
 1. Install [LM Studio’s headless llmster service and CLI](https://lmstudio.ai/docs/developer/core/headless). The desktop window is not required.
-2. Download a **Qwen 3.5 4B** quantization suitable for your Mac. You do not need to keep it loaded.
+2. Open **Settings → Local AI**. **Qwen 3.5 4B** is the default; use **Download default** if you don't have it yet. Or refresh the model list, choose another downloaded language model, and save settings.
 3. No manual server startup is needed: the first `@qwen` request starts the installed headless service on localhost port `1234`.
 4. Open a LeetJournal focus session and enter one of these commands on the last line of Notes:
 
@@ -111,7 +111,7 @@ Press <kbd>Enter</kbd> to stream the response into the notebook. Use <kbd>Shift<
 | `@qwen` | Only the text after the command |
 | `@big-qwen` | Current problem, notebook, request, and live LeetCode editor code |
 
-LeetJournal requires a downloaded model whose LM Studio identifier contains Qwen 3.5 and 4B. It does not silently fall back to another model. It loads on the first Qwen request, keeps the model available for quick follow-ups, and unloads after 60 seconds without a request following the end of a response. Leaving or finishing focus, or quitting LeetJournal normally, releases it immediately. No model is loaded at app startup. Inference uses the local LM Studio server with reasoning disabled by default.
+LeetJournal uses Qwen 3.5 4B by default and supports choosing other downloaded language models. It loads the selected model on the first request, keeps it available for quick follow-ups, and unloads after 60 seconds of inactivity following a response. Leaving or finishing focus, or quitting LeetJournal normally, starts releasing it. No model is loaded at app startup. Reasoning is disabled where the selected model supports it.
 
 Notes show **Preparing Qwen…** during the first request, then **Responding** as text arrives. Use **Stop** to keep a partial answer, or **Clear response** to remove the latest answer. Output follows along as it streams; scroll upward to read without being pulled back down. If you stop or leave during model loading, LeetJournal waits for the load to settle before cancelling inference and, when leaving, releasing the model.
 
@@ -125,7 +125,7 @@ An already-running server is reused. No service or model starts at app launch.
 One-time setup: install the official **llmster** service and its `lms` CLI using
 [LM Studio's headless setup guide](https://lmstudio.ai/docs/developer/core/headless).
 The CLI must be available at `~/.lmstudio/bin/lms` on macOS. LeetJournal does not
-silently install software or download models. Missing installations and startup
+silently install software; model downloads start only when you click **Download default**. Missing installations and startup
 failures are shown in Notes; fix the setup and resubmit your command.
 
 For troubleshooting, the equivalent commands are:
