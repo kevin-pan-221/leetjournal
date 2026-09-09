@@ -40,16 +40,6 @@ LeetJournal brings planning, focused problem solving, reflection, and spaced rev
 - **Ask a private local coach.** Optional `@qwen` commands stream from LM Studio; `@big-qwen` can include the active problem, notes, and live editor code.
 - **Make progress visible.** Solved problems and consistent practice gradually bring the garden world to life.
 
-## Garden progression
-
-<table>
-  <tr>
-    <td align="center"><img src="public/garden/open-field.png" alt="Open Field" /><br /><strong>Open Field</strong></td>
-    <td align="center"><img src="public/garden/meadow.png" alt="Meadow" /><br /><strong>Meadow</strong></td>
-    <td align="center"><img src="public/garden/countryside.png" alt="Countryside" /><br /><strong>Countryside</strong></td>
-  </tr>
-</table>
-
 ## Download and install
 
 **[Download LeetJournal for macOS](https://github.com/kevin-pan-221/leetjournal/releases)**
