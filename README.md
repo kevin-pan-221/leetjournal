@@ -9,6 +9,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/kevin-pan-221/leetjournal/releases">Download for macOS</a>
+  · <a href="#build-from-source-contributors">Build from source</a>
+</p>
+
+<p align="center">
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri&logoColor=white" />
   <img alt="Rust" src="https://img.shields.io/badge/Rust-native-000000?logo=rust&logoColor=white" />
   <img alt="React" src="https://img.shields.io/badge/React-TypeScript-3178C6?logo=react&logoColor=white" />
@@ -31,7 +36,7 @@ LeetJournal brings planning, focused problem solving, reflection, and spaced rev
 - **Know what to practice.** A daily warm-up and main problem are selected from your curriculum and review queue.
 - **Build durable recall.** Reflections feed a mastery-level spaced-review schedule rather than a fixed reminder interval.
 - **Keep a real learning record.** Attempts, notes, confidence, mistakes, streaks, and reviews live in a local SQLite database.
-- **Organize problems like books.** NeetCode 150 plus Roblox, Microsoft, and Databricks company collections are included, and personal books can import LeetCode problem URLs in bulk.
+- **Organize problems like books.** Browse NeetCode 150 and curated company-tagged collections, or create personal books and import LeetCode problem URLs in bulk.
 - **Ask a private local coach.** Optional `@qwen` commands stream from LM Studio; `@big-qwen` can include the active problem, notes, and live editor code.
 - **Make progress visible.** Solved problems and consistent practice gradually bring the garden world to life.
 
@@ -45,7 +50,24 @@ LeetJournal brings planning, focused problem solving, reflection, and spaced rev
   </tr>
 </table>
 
-## Quick start
+## Download and install
+
+**[Download LeetJournal for macOS](https://github.com/kevin-pan-221/leetjournal/releases)**
+
+For Apple Silicon Macs (M1 or newer): open a release, download its `.dmg` from
+**Assets**, open it, and drag **LeetJournal** into **Applications**. No cloning,
+Rust, Node.js, or developer tools are needed. If no release has been published
+yet, there is not yet a public installer; use the source instructions below.
+
+The initial releases are ad-hoc signed, not Apple-notarized. If macOS blocks
+opening a download you trust from this repository, use **System Settings →
+Privacy & Security → Open Anyway** after attempting to open it. Do not disable
+system-wide security protections.
+
+LM Studio is **optional**. Planning, focus, notes, journal, reviews, and the
+garden work without it. LeetCode itself needs an internet connection.
+
+## Build from source (contributors)
 
 ### Prerequisites
 
@@ -82,9 +104,9 @@ src-tauri/target/release/bundle/macos/LeetJournal.app
 
 LeetJournal's notes work without AI. To enable the local Qwen commands:
 
-1. Install [LM Studio](https://lmstudio.ai/).
+1. Install [LM Studio’s headless llmster service and CLI](https://lmstudio.ai/docs/developer/core/headless). The desktop window is not required.
 2. Download a **Qwen 3.5 4B** quantization suitable for your Mac. You do not need to keep it loaded.
-3. In LM Studio's Developer tab, start the local server on port `1234`.
+3. No manual server startup is needed: the first `@qwen` request starts the installed headless service on localhost port `1234`.
 4. Open a LeetJournal focus session and enter one of these commands on the last line of Notes:
 
 ```text
@@ -102,6 +124,35 @@ Press <kbd>Enter</kbd> to stream the response into the notebook. Use <kbd>Shift<
 LeetJournal requires a downloaded model whose LM Studio identifier contains Qwen 3.5 and 4B. It does not silently fall back to another model. It loads on the first Qwen request, keeps the model available for quick follow-ups, and unloads after 60 seconds without a request following the end of a response. Leaving or finishing focus, or quitting LeetJournal normally, releases it immediately. No model is loaded at app startup. Inference uses the local LM Studio server with reasoning disabled by default.
 
 Notes show **Preparing Qwen…** during the first request, then **Responding** as text arrives. Use **Stop** to keep a partial answer, or **Clear response** to remove the latest answer. Output follows along as it streams; scroll upward to read without being pulled back down. If you stop or leave during model loading, LeetJournal waits for the load to settle before cancelling inference and, when leaving, releasing the model.
+
+### Can I close the LM Studio window?
+
+Yes. **Headless is the default:** when the local server is stopped, the first
+`@qwen` or `@big-qwen` request starts the installed llmster daemon and local
+server, then loads Qwen and answers. LeetJournal never opens the desktop GUI.
+An already-running server is reused. No service or model starts at app launch.
+
+One-time setup: install the official **llmster** service and its `lms` CLI using
+[LM Studio's headless setup guide](https://lmstudio.ai/docs/developer/core/headless).
+The CLI must be available at `~/.lmstudio/bin/lms` on macOS. LeetJournal does not
+silently install software or download models. Missing installations and startup
+failures are shown in Notes; fix the setup and resubmit your command.
+
+For troubleshooting, the equivalent commands are:
+
+```bash
+lms daemon up
+lms server start --port 1234 --bind 127.0.0.1
+```
+
+Download Qwen 3.5 4B into that service's model library first. Keep the server
+local-only; LeetJournal connects to `127.0.0.1:1234`. It will load the model on
+demand and release it after use; it does not shut down the shared LM Studio
+service. A running service and a model loaded in memory are separate things.
+
+Alternatively, LM Studio's **run server on login** setting supports background
+operation after closing its desktop UI. See the guide above for the behavior of
+your installed version. Neither option requires keeping a model loaded.
 
 ## Everyday workflow
 
@@ -129,6 +180,9 @@ The embedded LeetCode webview uses a persistent macOS web-data store so your Lee
 Back up the SQLite file before resetting or moving application data. The `-wal` and `-shm` companion files may be present while LeetJournal is running.
 
 ## Development
+
+Maintainers: see [Releasing LeetJournal](docs/RELEASING.md) for automated DMG
+builds, draft releases, and signing setup.
 
 ```bash
 # Frontend type-check

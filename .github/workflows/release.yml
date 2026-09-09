@@ -1,0 +1,75 @@
+name: Build macOS release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Check release version
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'));
+          const version = read('package.json').version;
+          const cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = "([^"]+)"/m)?.[1];
+          if (read('src-tauri/tauri.conf.json').version !== version || cargo !== version || read('package-lock.json').packages[''].version !== version) {
+            throw new Error('App, package, lockfile, and Cargo versions must match.');
+          }
+          if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${version}`) {
+            throw new Error(`Expected tag v${version}.`);
+          }
+          JS
+      - run: npm run check:all
+      - name: Build installer and draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ad-hoc signed, not Developer ID signed or notarized.
+          APPLE_SIGNING_IDENTITY: '-'
+        with:
+          args: --target aarch64-apple-darwin --bundles app,dmg
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: LeetJournal v__VERSION__
+          releaseDraft: true
+          includeUpdaterJson: false
+          releaseBody: |
+            Download the Apple Silicon macOS .dmg, open it, and drag LeetJournal into Applications.
+            No Rust, Node.js, or Git installation is required.
+
+            This build is ad-hoc signed, not Apple-notarized; macOS may ask for approval under System Settings → Privacy & Security.
+            LM Studio and a downloaded Qwen 3.5 4B model are optional and are not included.
+      - name: Retain installer for manual test builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeetJournal-macOS-Apple-Silicon
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
