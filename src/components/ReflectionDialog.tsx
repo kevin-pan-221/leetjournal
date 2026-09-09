@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import type { FinishAttemptInput, FocusContext } from '../domain'
+import type { FinishAttemptInput } from '../domain'
+import { errorMessage } from '../utils/errors'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 const outcomes = ['Easy', 'Solved', 'Struggled', 'Needed hint', "Couldn't solve"]
 const outcomeIcons = ['😊', '😌', '😓', '🤔', '😵']
@@ -16,24 +18,30 @@ const mistakes = [
 ]
 
 interface ReflectionDialogProps {
-  context: FocusContext
+  problemTitle: string
+  initialValues?: Omit<FinishAttemptInput, 'attemptId'>
   initialNotes: string
   onSave: (input: Omit<FinishAttemptInput, 'attemptId'>) => Promise<void>
   onCancel: () => void
 }
 
-export function ReflectionDialog({ context, initialNotes, onSave, onCancel }: ReflectionDialogProps) {
-  const [outcome, setOutcome] = useState('Solved')
-  const [confidence, setConfidence] = useState(4)
+export function ReflectionDialog({ problemTitle, initialValues, initialNotes, onSave, onCancel }: ReflectionDialogProps) {
+  const [outcome, setOutcome] = useState(initialValues?.outcome ?? 'Solved')
+  const [confidence, setConfidence] = useState(initialValues?.confidence ?? 4)
   const [notes, setNotes] = useState(initialNotes)
-  const [selectedMistakes, setSelectedMistakes] = useState<string[]>([])
+  const [selectedMistakes, setSelectedMistakes] = useState<string[]>(initialValues?.mistakes ?? [])
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  useEscapeKey(!saving, onCancel)
 
   const save = async () => {
     if (saving) return
     setSaving(true)
+    setError('')
     try {
       await onSave({ outcome, confidence, notes, mistakes: selectedMistakes })
+    } catch (saveError) {
+      setError(errorMessage(saveError))
     } finally {
       setSaving(false)
     }
@@ -41,12 +49,12 @@ export function ReflectionDialog({ context, initialNotes, onSave, onCancel }: Re
 
   return (
     <div className="modal-backdrop">
-      <div className="log-modal">
-        <button className="modal-close" disabled={saving} onClick={onCancel} aria-label="Close reflection">
+      <div className="log-modal" role="dialog" aria-modal="true" aria-labelledby="reflection-title">
+        <button autoFocus className="modal-close" disabled={saving} onClick={onCancel} aria-label="Close reflection">
           <X />
         </button>
-        <span className="eyebrow">Log entry · {context.attempt.problem.title}</span>
-        <h2>How did it go?</h2>
+        <span className="eyebrow">{initialValues ? 'Edit reflection' : 'Log entry'} · {problemTitle}</span>
+        <h2 id="reflection-title">How did it go?</h2>
         <div className="outcomes">
           {outcomes.map((value, index) => (
             <button disabled={saving} className={outcome === value ? 'selected' : ''} onClick={() => setOutcome(value)} key={value}>
@@ -84,8 +92,9 @@ export function ReflectionDialog({ context, initialNotes, onSave, onCancel }: Re
           onChange={(event) => setNotes(event.target.value)}
           placeholder="Write your key takeaways, patterns, or anything you want to remember…"
         />
+        {error && <p role="alert">{error}</p>}
         <button className="primary save" disabled={saving} onClick={save}>
-          {saving ? 'Saving…' : 'Save entry'}
+          {saving ? 'Saving…' : initialValues ? 'Save changes' : 'Save entry'}
         </button>
       </div>
     </div>

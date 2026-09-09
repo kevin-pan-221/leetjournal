@@ -377,6 +377,62 @@ mod domain_tests {
     use super::*;
 
     #[test]
+    fn reflection_edits_preserve_session_metadata_and_reject_active_entries() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE attempts(id INTEGER PRIMARY KEY, outcome TEXT, confidence INTEGER, notes TEXT, completed_at TEXT, abandoned_at TEXT, duration_seconds INTEGER);
+            CREATE TABLE attempt_mistakes(attempt_id INTEGER, mistake_type TEXT, PRIMARY KEY(attempt_id,mistake_type));
+            INSERT INTO attempts VALUES(1,'Solved',4,'old','2026-09-01',NULL,600);
+            INSERT INTO attempts VALUES(2,NULL,NULL,'draft',NULL,NULL,0);
+            INSERT INTO attempt_mistakes VALUES(1,'Implementation');").unwrap();
+        let mut input = FinishAttemptInput {
+            attempt_id: 1,
+            outcome: "Struggled".into(),
+            confidence: 2,
+            notes: "Updated takeaway".into(),
+            mistakes: vec!["Edge case".into()],
+        };
+        update_reflection(&mut conn, &input).unwrap();
+        let saved: (String, i32, String, String, i32) = conn.query_row(
+            "SELECT outcome,confidence,notes,completed_at,duration_seconds FROM attempts WHERE id=1", [],
+            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
+        ).unwrap();
+        assert_eq!(
+            saved,
+            (
+                "Struggled".into(),
+                2,
+                "Updated takeaway".into(),
+                "2026-09-01".into(),
+                600
+            )
+        );
+        let tags: String = conn
+            .query_row(
+                "SELECT group_concat(mistake_type) FROM attempt_mistakes WHERE attempt_id=1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tags, "Edge case");
+        input.confidence = 6;
+        assert!(update_reflection(&mut conn, &input).is_err());
+        input.confidence = 3;
+        input.attempt_id = 2;
+        assert!(update_reflection(&mut conn, &input).is_err());
+        input.attempt_id = 999;
+        assert!(update_reflection(&mut conn, &input).is_err());
+        input.attempt_id = 1;
+        input.mistakes.clear();
+        update_reflection(&mut conn, &input).unwrap();
+        let count: i32 = conn
+            .query_row("SELECT count(*) FROM attempt_mistakes", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
     fn stage_boundaries_are_stable() {
         assert_eq!(garden_stage_for(0), GardenStage::OpenField);
         assert_eq!(garden_stage_for(10), GardenStage::OpenField);
@@ -695,6 +751,38 @@ pub fn get_journal(db: State<Db>) -> AppResult<Vec<JournalEntry>> {
         });
     }
     Ok(out)
+}
+
+fn update_reflection(conn: &mut rusqlite::Connection, input: &FinishAttemptInput) -> AppResult<()> {
+    validate_finish_input(input)?;
+    let tx = conn.transaction()?;
+    let changed = tx.execute(
+        "UPDATE attempts SET outcome=?1,confidence=?2,notes=?3 WHERE id=?4 AND completed_at IS NOT NULL AND abandoned_at IS NULL",
+        params![input.outcome, input.confidence, input.notes, input.attempt_id],
+    )?;
+    if changed != 1 {
+        return Err(AppError::Message(
+            "Completed journal entry not found".into(),
+        ));
+    }
+    tx.execute(
+        "DELETE FROM attempt_mistakes WHERE attempt_id=?1",
+        [input.attempt_id],
+    )?;
+    for mistake in &input.mistakes {
+        tx.execute(
+            "INSERT OR IGNORE INTO attempt_mistakes(attempt_id,mistake_type) VALUES(?1,?2)",
+            params![input.attempt_id, mistake],
+        )?;
+    }
+    // Editing a reflection must not award activity or reschedule a review.
+    tx.commit()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_journal_entry(input: FinishAttemptInput, db: State<Db>) -> AppResult<()> {
+    update_reflection(&mut db.0.lock().unwrap(), &input)
 }
 
 #[tauri::command]

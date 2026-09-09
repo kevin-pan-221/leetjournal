@@ -76,5 +76,6 @@ export function useAppData() {
     setFocus,
     setGarden,
     setSettings,
+    setEntries,
   }
 }

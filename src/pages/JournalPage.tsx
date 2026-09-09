@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronRight, ExternalLink, RefreshCw, Search, X } from 'lucide-react'
-import type { JournalEntry, Problem } from '../domain'
+import type { FinishAttemptInput, JournalEntry, Problem } from '../domain'
+import { ReflectionDialog } from '../components/ReflectionDialog'
 import { Chip, EmptyState, PageHeader } from '../components/ui'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { formatEntryDate } from '../utils/dates'
@@ -11,6 +12,7 @@ const FILTERS: JournalFilter[] = ['All', 'Solved', 'Reviews', 'Struggled']
 interface JournalPageProps {
   entries: JournalEntry[]
   onStart: (problem: Problem) => void
+  onEdit: (input: FinishAttemptInput) => Promise<void>
 }
 
 function matchesFilter(entry: JournalEntry, filter: JournalFilter) {
@@ -55,10 +57,12 @@ function JournalDetail({
   entry,
   onClose,
   onPractice,
+  onEdit,
 }: {
   entry: JournalEntry
   onClose: () => void
   onPractice: () => void
+  onEdit: () => void
 }) {
   useEscapeKey(true, onClose)
 
@@ -104,6 +108,7 @@ function JournalDetail({
           ) : <p>Nothing was tagged.</p>}
         </div>
         <div className="journal-detail-actions">
+          <button className="outline" onClick={onEdit}>Edit reflection</button>
           <a className="outline" href={entry.problem.leetcodeUrl} target="_blank" rel="noreferrer">
             Open on LeetCode <ExternalLink size={14} />
           </a>
@@ -116,10 +121,12 @@ function JournalDetail({
   )
 }
 
-export function JournalPage({ entries, onStart }: JournalPageProps) {
+export function JournalPage({ entries, onStart, onEdit }: JournalPageProps) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<JournalFilter>('All')
-  const [selected, setSelected] = useState<JournalEntry | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [editing, setEditing] = useState(false)
+  const selected = entries.find((entry) => entry.id === selectedId)
   const normalizedQuery = query.trim().toLowerCase()
   const visible = useMemo(
     () => entries.filter((entry) =>
@@ -146,7 +153,7 @@ export function JournalPage({ entries, onStart }: JournalPageProps) {
       </div>
       <div className="journal-list">
         {visible.length ? visible.map((entry) => (
-          <JournalEntryCard key={entry.id} entry={entry} onOpen={() => setSelected(entry)} />
+          <JournalEntryCard key={entry.id} entry={entry} onOpen={() => setSelectedId(entry.id)} />
         )) : (
           <EmptyState
             title="No matching entries"
@@ -156,13 +163,25 @@ export function JournalPage({ entries, onStart }: JournalPageProps) {
           />
         )}
       </div>
-      {selected && (
+      {selected && editing && <ReflectionDialog
+        key={selected.id}
+        problemTitle={selected.problem.title}
+        initialNotes={selected.notes}
+        initialValues={selected}
+        onCancel={() => setEditing(false)}
+        onSave={async (input) => {
+          await onEdit({ attemptId: selected.id, ...input })
+          setEditing(false)
+        }}
+      />}
+      {selected && !editing && (
         <JournalDetail
           entry={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => setSelectedId(null)}
+          onEdit={() => setEditing(true)}
           onPractice={() => {
             const problem = selected.problem
-            setSelected(null)
+            setSelectedId(null)
             onStart(problem)
           }}
         />

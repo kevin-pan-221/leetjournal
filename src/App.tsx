@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { LoaderCircle } from 'lucide-react'
 import { api } from './api'
 import { errorMessage } from './utils/errors'
@@ -20,7 +21,7 @@ import { TodayPage } from './pages/TodayPage'
 
 export default function App() {
   const { dashboard, garden, focus, entries, reviews, books, settings, loading, error,
-    reload, setFocus, setGarden, setSettings } = useAppData()
+    reload, setFocus, setGarden, setSettings, setEntries } = useAppData()
   const [page, setPage] = useState<Page>('today')
   const [logging, setLogging] = useState(false)
   const [reflectionNotes, setReflectionNotes] = useState('')
@@ -117,43 +118,48 @@ export default function App() {
 
   const beginReflection = async (notes?: string) => {
     if (!focus) return
-    if (notes !== undefined) {
-      setReflectionNotes(notes)
-      setLogging(true)
-      return
-    }
+    // Native child webviews sit above HTML dialogs. Hide before opening the form
+    // and return input focus to the app instead of leaving it in the editor.
+    setReflectionNotes(notes ?? focus.attempt.notes)
+    setLogging(true)
     try {
-      const current = await api.focusContext()
-      if (!current) return
-      setFocus(current)
-      setReflectionNotes(current.attempt.notes)
-      setLogging(true)
+      await hideLeetCodeWorkspace()
+      await getCurrentWebview().setFocus()
     } catch (actionError) { reportActionError(actionError) }
   }
 
   const finish = async (input: Omit<FinishAttemptInput, 'attemptId'>) => {
-    if (!focus) return
-    try {
-      const previousStage = garden?.currentStage
-      await api.finish({ attemptId: focus.attempt.id, ...input })
-      await releaseQwen()
-      await closeLeetCodeWorkspace()
-      const nextGarden = await api.garden()
+    if (!focus) throw new Error('This focus session is no longer active.')
+    const previousStage = garden?.currentStage
+    const entry = await api.finish({ attemptId: focus.attempt.id, ...input })
+    // The write is committed: leave the form immediately. Model cleanup is not
+    // part of saving and must never leave a saved attempt stuck on this screen.
+    setEntries((current) => [entry, ...current.filter((item) => item.id !== entry.id)])
+    setFocus(null)
+    setLogging(false)
+    setReflectionNotes('')
+    setPage('journal')
+    setToast('Journal entry saved · the garden feels a little livelier')
+    void releaseQwen()
+    void closeLeetCodeWorkspace()
+    void reload()
+    void api.garden().then((nextGarden) => {
       setGarden(nextGarden)
-      setLogging(false)
-      setReflectionNotes('')
-      await reload()
       if (previousStage && previousStage !== nextGarden.currentStage) {
-        setPage('garden')
+        setGardenMounted(true)
+        setPage((current) => current === 'journal' ? 'garden' : current)
         setToast(`The ${gardenStageName(previousStage)} has grown into a ${gardenStageName(nextGarden.currentStage)}.`)
-      } else {
-        setPage('journal')
-        setToast('Journal entry saved · the garden feels a little livelier')
       }
-    } catch (actionError) {
-      reportActionError(actionError)
-      throw actionError
-    }
+    }).catch(reportActionError)
+  }
+
+  const editReflection = async (input: FinishAttemptInput) => {
+    await api.updateJournal(input)
+    setEntries((current) => current.map((entry) => entry.id === input.attemptId
+      ? { ...entry, outcome: input.outcome, confidence: input.confidence,
+        notes: input.notes, mistakes: input.mistakes }
+      : entry))
+    setToast('Reflection updated')
   }
 
   const content = useMemo(() => {
@@ -166,7 +172,7 @@ export default function App() {
     if (page === 'garden-focus') return <GardenFocus context={focus} garden={garden} animate={settings.plantAnimations} onPause={pause} onWorkspace={() => setPage('focus')} onFinish={() => void beginReflection()} />
     if (page === 'focus') return <FocusPage context={focus} settings={settings} obscured={logging || confirmLeave} onPause={pause} onFinish={(notes) => void beginReflection(notes)} onBack={() => setPage('today')} />
     if (page === 'problems') return <LibraryPage books={books} entries={entries} onStart={(problem) => start(problem)} onReload={reload} onSetToday={async (kind, problem) => { await api.setTodayItem(kind, problem.id); await reload(); setToast(`${problem.title} set as today’s ${kind.toLowerCase()}`) }} />
-    if (page === 'journal') return <JournalPage entries={entries} onStart={(problem) => start(problem)} />
+    if (page === 'journal') return <JournalPage entries={entries} onEdit={editReflection} onStart={(problem) => start(problem)} />
     if (page === 'reviews') return <ReviewsPage reviews={reviews} onStart={(problem) => start(problem, true)} />
     return <SettingsPage settings={settings} onSave={async (nextSettings) => { setSettings(await api.saveSettings(nextSettings)); await reload(); setToast('Settings saved') }} />
   }, [page, dashboard, garden, focus, entries, reviews, books, settings, loading, error, logging, confirmLeave])
@@ -197,7 +203,7 @@ export default function App() {
       </main>
       {focus && page === 'today' && <div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden /></div>}
       {confirmLeave && focus && <ConfirmLeave problem={focus.attempt.problem.title} onStay={() => setConfirmLeave(false)} onPauseExit={pauseAndExit} onEnd={endSession} />}
-      {logging && focus && <ReflectionDialog context={focus} initialNotes={reflectionNotes} onSave={finish} onCancel={() => { setLogging(false); setReflectionNotes('') }} />}
+      {logging && focus && <ReflectionDialog problemTitle={focus.attempt.problem.title} initialNotes={reflectionNotes} onSave={finish} onCancel={() => { setLogging(false); setReflectionNotes('') }} />}
       {toast && <button className="toast" onClick={() => setToast('')}>{toast}</button>}
     </div>
   )

@@ -93,6 +93,7 @@ pub fn run() {
             commands::abandon_attempt,
             commands::finish_attempt,
             commands::get_journal,
+            commands::update_journal_entry,
             commands::get_review_queue,
             commands::get_dashboard,
             commands::get_garden_state,

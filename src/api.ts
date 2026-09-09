@@ -33,6 +33,7 @@ export const api = {
   abandon: (attemptId: number) => invoke<void>('abandon_attempt', { attemptId }),
   finish: (input: FinishAttemptInput) => invoke<JournalEntry>('finish_attempt', { input }),
   journal: () => invoke<JournalEntry[]>('get_journal'),
+  updateJournal: (input: FinishAttemptInput) => invoke<void>('update_journal_entry', { input }),
   reviews: () => invoke<Review[]>('get_review_queue'),
   settings: () => invoke<AppSettings>('get_settings'),
   saveSettings: (settings: AppSettings) => invoke<AppSettings>('save_settings', { settings }),
