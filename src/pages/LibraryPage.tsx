@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronRight, Pencil, Play, Search, Sprout, X } from 'lucide-react'
 import { api } from '../api'
 import { errorMessage } from '../utils/errors'
+import { readBookView, saveBookView, readOpenBook, saveOpenBook } from '../utils/libraryView'
 import type { JournalEntry, Problem, ProblemBook, ProblemOverview } from '../domain'
 import { BookEditor } from '../components/BookEditor'
 import { Card, Chip, PageHeader } from '../components/ui'
@@ -23,10 +24,15 @@ interface ProblemListProps {
 }
 
 function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListProps) {
-  const [query, setQuery] = useState('')
-  const [difficulty, setDifficulty] = useState('All')
-  const [status, setStatus] = useState('All')
-  const [category, setCategory] = useState('All')
+  const [view, setView] = useState(() => readBookView(book.id))
+  const { query, difficulty, status } = view
+  const category = view.category === 'All' || items.some((item) => item.problem.category === view.category) ? view.category : 'All'
+  const setQuery = (query: string) => setView((current) => ({ ...current, query }))
+  const setDifficulty = (difficulty: string) => setView((current) => ({ ...current, difficulty }))
+  const setStatus = (status: string) => setView((current) => ({ ...current, status }))
+  const setCategory = (category: string) => setView((current) => ({ ...current, category }))
+
+  useEffect(() => saveBookView(book.id, { ...view, category }), [book.id, view, category])
   const [selected, setSelected] = useState<ProblemOverview | null>(null)
   const [visibleCount, setVisibleCount] = useState(100)
   const categories = [...new Set(items.map((item) => item.problem.category))]
@@ -73,7 +79,7 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
 }
 
 export function LibraryPage({ books, entries, onStart, onSetToday, onReload }: LibraryPageProps) {
-  const [openBook, setOpenBook] = useState<ProblemBook | null>(null)
+  const [openBook, setOpenBook] = useState<ProblemBook | null>(() => books.find((book) => book.id === readOpenBook()) ?? null)
   const [items, setItems] = useState<ProblemOverview[]>([])
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -83,14 +89,33 @@ export function LibraryPage({ books, entries, onStart, onSetToday, onReload }: L
   const [accent, setAccent] = useState('sage')
   const [error, setError] = useState('')
 
-  const loadItems = async (book: ProblemBook) => setItems(await api.bookProblems(book.id))
-  const open = async (book: ProblemBook) => {
+  const [loadingItems, setLoadingItems] = useState(Boolean(openBook))
+  const loadRequest = useRef(0)
+  const loadItems = useCallback(async (book: ProblemBook) => {
+    const request = ++loadRequest.current
+    setLoadingItems(true)
     setError('')
-    setOpenBook(book)
-    setItems([])
-    try { await loadItems(book) } catch (loadError) {
-      setError(errorMessage(loadError))
+    try {
+      const nextItems = await api.bookProblems(book.id)
+      if (request === loadRequest.current) setItems(nextItems)
+    } catch (loadError) {
+      if (request === loadRequest.current) setError(errorMessage(loadError))
+    } finally {
+      if (request === loadRequest.current) setLoadingItems(false)
     }
+  }, [])
+
+  useEffect(() => {
+    saveOpenBook(openBook?.id ?? null)
+    setItems([])
+    if (openBook) void loadItems(openBook)
+    return () => { ++loadRequest.current }
+  }, [openBook, loadItems])
+
+  const open = (book: ProblemBook) => {
+    setError('')
+    setLoadingItems(true)
+    setOpenBook(book)
   }
 
   if (openBook) {
@@ -98,8 +123,9 @@ export function LibraryPage({ books, entries, onStart, onSetToday, onReload }: L
       <div className="book-reader-shell">
         <button className="back shelf-back" onClick={() => setOpenBook(null)}>‹ <span>Back to library</span></button>
         {!openBook.builtIn && <button className="book-edit-trigger" onClick={() => setEditing(true)}><Pencil size={14} /> Edit collection</button>}
-        {error ? <div className="page empty-book"><h1>Couldn’t open this book</h1><p>{error}</p><button className="primary" onClick={() => void loadItems(openBook)}>Try again</button></div>
-          : items.length ? <ProblemList book={openBook} items={items} entries={entries} onStart={onStart} onSetToday={onSetToday} />
+        {loadingItems ? <div className="page empty-book" role="status">Loading problems…</div>
+          : error ? <div className="page empty-book"><h1>Couldn’t open this book</h1><p>{error}</p><button className="primary" onClick={() => void loadItems(openBook)}>Try again</button></div>
+          : items.length ? <ProblemList key={openBook.id} book={openBook} items={items} entries={entries} onStart={onStart} onSetToday={onSetToday} />
             : <div className="page empty-book"><div className={`empty-book-cover ${openBook.accent}`}><BookOpen /></div><h1>{openBook.title}</h1><p>This book is waiting for its first problem list.</p>{openBook.builtIn ? <button className="primary" onClick={() => setOpenBook(null)}>Return to library</button> : <button className="primary" onClick={() => setEditing(true)}>Import problems</button>}</div>}
         {editing && <BookEditor book={openBook} items={items} onClose={() => setEditing(false)} onUpdated={async (book) => { setOpenBook(book); await onReload() }} onItemsChanged={async () => { await loadItems(openBook); await onReload() }} onDeleted={async () => { setEditing(false); setOpenBook(null); await onReload() }} />}
       </div>
