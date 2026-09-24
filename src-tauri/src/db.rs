@@ -117,8 +117,7 @@ fn migrate(conn: &Connection) -> AppResult<()> {
     if !has_abandoned_at {
         conn.execute("ALTER TABLE attempts ADD COLUMN abandoned_at TEXT", [])?;
     }
-    conn.execute("UPDATE attempts SET abandoned_at=datetime('now'),paused_at=NULL WHERE completed_at IS NULL AND abandoned_at IS NULL AND id<>(SELECT MAX(id) FROM attempts WHERE completed_at IS NULL AND abandoned_at IS NULL)", [])?;
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_one_active ON attempts((1)) WHERE completed_at IS NULL AND abandoned_at IS NULL", [])?;
+    migrate_session_slots(conn)?;
     let defaults = [
         ("display_name", "Coder"),
         ("daily_focus_minutes", "30"),
@@ -136,6 +135,28 @@ fn migrate(conn: &Connection) -> AppResult<()> {
         )?;
     }
     Ok(())
+}
+
+fn migrate_session_slots(conn: &Connection) -> AppResult<()> {
+    // Preserve every attempt. If legacy duplicates exist, creation fails and
+    // the transaction restores the old index instead of discarding sessions.
+    let tx = conn.unchecked_transaction()?;
+    tx.execute_batch(
+        "DROP INDEX IF EXISTS idx_attempts_one_active;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_one_per_kind ON attempts(is_review)
+        WHERE completed_at IS NULL AND abandoned_at IS NULL;",
+    )?;
+    tx.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+pub(crate) fn test_connection() -> Connection {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+    migrate(&conn).unwrap();
+    seed(&conn).unwrap();
+    conn
 }
 
 fn seed(conn: &Connection) -> AppResult<()> {
@@ -214,6 +235,20 @@ pub fn map_problem(row: &rusqlite::Row<'_>) -> rusqlite::Result<Problem> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_migration_preserves_both_attempts_across_restarts() {
+        let conn = test_connection();
+        conn.execute_batch("DROP INDEX idx_attempts_one_per_kind;
+            CREATE UNIQUE INDEX idx_attempts_one_active ON attempts((1)) WHERE completed_at IS NULL AND abandoned_at IS NULL;
+            INSERT INTO attempts(problem_id,started_at,notes,is_review) VALUES('contains-duplicate','2026-09-09T12:00:00Z','keep focus',0);").unwrap();
+        migrate(&conn).unwrap();
+        conn.execute("INSERT INTO attempts(problem_id,started_at,notes,is_review) VALUES('valid-anagram','2026-09-09T13:00:00Z','keep review',1)", []).unwrap();
+        migrate(&conn).unwrap();
+        let count: i64 = conn.query_row("SELECT count(*) FROM attempts WHERE abandoned_at IS NULL AND completed_at IS NULL AND notes IN ('keep focus','keep review')", [], |r| r.get(0)).unwrap();
+        assert_eq!(count, 2);
+        assert!(conn.execute("INSERT INTO attempts(problem_id,started_at,is_review) VALUES('two-sum','2026-09-09T14:00:00Z',1)", []).is_err());
+    }
     use std::collections::HashSet;
 
     #[test]

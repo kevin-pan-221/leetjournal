@@ -47,7 +47,7 @@ export const api = {
   reviews: () => invoke<Review[]>('get_review_queue'),
   settings: () => invoke<AppSettings>('get_settings'),
   saveSettings: (settings: AppSettings) => invoke<AppSettings>('save_settings', { settings }),
-  focusContext: () => invoke<FocusContext | null>('get_focus_context'),
+  focusContext: (isReview = false) => invoke<FocusContext | null>('get_focus_context', { isReview }),
   setTodayItem: (kind: 'Warm-up' | 'Main problem', problemId: string) =>
     invoke<TodayPlan>('set_today_plan_item', { kind, problemId }),
   library: () => invoke<ProblemBook[]>('get_problem_library'),

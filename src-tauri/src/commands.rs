@@ -68,11 +68,14 @@ fn query_reviews(
     Ok(rows)
 }
 
-fn query_active_attempt_row(conn: &rusqlite::Connection) -> AppResult<Option<ActiveAttemptRow>> {
+fn query_active_attempt_row(
+    conn: &rusqlite::Connection,
+    is_review: bool,
+) -> AppResult<Option<ActiveAttemptRow>> {
     Ok(conn
         .query_row(
-            "SELECT id,problem_id,started_at,paused_at,paused_seconds,notes,is_review FROM attempts WHERE completed_at IS NULL AND abandoned_at IS NULL ORDER BY id DESC LIMIT 1",
-            [],
+            "SELECT id,problem_id,started_at,paused_at,paused_seconds,notes,is_review FROM attempts WHERE completed_at IS NULL AND abandoned_at IS NULL AND is_review=? ORDER BY id DESC LIMIT 1",
+            [is_review],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
         )
         .optional()?)
@@ -378,6 +381,88 @@ mod domain_tests {
     use super::*;
 
     #[test]
+    fn review_completion_preserves_the_separate_focus_attempt() {
+        let mut conn = crate::db::test_connection();
+        let focus = start_attempt_in_db(&mut conn, "contains-duplicate", false).unwrap();
+        conn.execute(
+            "UPDATE attempts SET notes='focus draft',started_at=? WHERE id=?",
+            params![(Utc::now() - Duration::minutes(10)).to_rfc3339(), focus.id],
+        )
+        .unwrap();
+        let review = start_attempt_in_db(&mut conn, "valid-anagram", true).unwrap();
+        assert_ne!(focus.id, review.id);
+        let preserved = query_active_attempt_row(&conn, false).unwrap().unwrap();
+        assert!(preserved.3.is_some());
+        assert_eq!(preserved.5, "focus draft");
+        assert_eq!(
+            query_active_attempt_row(&conn, true).unwrap().unwrap().0,
+            review.id
+        );
+        assert!(start_attempt_in_db(&mut conn, "two-sum", true).is_err());
+        let entry = finish_attempt_in_db(
+            &mut conn,
+            FinishAttemptInput {
+                attempt_id: review.id,
+                outcome: "Solved".into(),
+                confidence: 4,
+                notes: "review takeaway".into(),
+                mistakes: vec![],
+            },
+        )
+        .unwrap();
+        assert!(entry.is_review);
+        assert!(query_active_attempt_row(&conn, true).unwrap().is_none());
+        assert_eq!(
+            query_active_attempt_row(&conn, false).unwrap().unwrap(),
+            preserved
+        );
+        let completed: i64 = conn
+            .query_row(
+                "SELECT SUM(attempts_completed) FROM daily_activity",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(completed, 1);
+        assert_eq!(
+            start_attempt_in_db(&mut conn, "contains-duplicate", false)
+                .unwrap()
+                .id,
+            focus.id
+        );
+    }
+
+    #[test]
+    fn review_and_focus_can_use_the_same_problem_without_sharing_timers() {
+        let mut conn = crate::db::test_connection();
+        let focus = start_attempt_in_db(&mut conn, "contains-duplicate", false).unwrap();
+        let review = start_attempt_in_db(&mut conn, "contains-duplicate", true).unwrap();
+        assert_ne!(focus.id, review.id);
+        toggle_pause_in_db(&mut conn, focus.id).unwrap();
+        assert!(query_active_attempt_row(&conn, false)
+            .unwrap()
+            .unwrap()
+            .3
+            .is_none());
+        assert!(query_active_attempt_row(&conn, true)
+            .unwrap()
+            .unwrap()
+            .3
+            .is_some());
+        toggle_pause_in_db(&mut conn, review.id).unwrap();
+        assert!(query_active_attempt_row(&conn, false)
+            .unwrap()
+            .unwrap()
+            .3
+            .is_some());
+        assert!(query_active_attempt_row(&conn, true)
+            .unwrap()
+            .unwrap()
+            .3
+            .is_none());
+    }
+
+    #[test]
     fn reflection_edits_preserve_session_metadata_and_reject_active_entries() {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();
         conn.execute_batch("CREATE TABLE attempts(id INTEGER PRIMARY KEY, outcome TEXT, confidence INTEGER, notes TEXT, completed_at TEXT, abandoned_at TEXT, duration_seconds INTEGER);
@@ -510,9 +595,9 @@ mod domain_tests {
     }
 }
 
-pub fn get_active_attempt(db: State<Db>) -> AppResult<Option<ActiveAttempt>> {
+pub fn get_active_attempt(db: State<Db>, is_review: bool) -> AppResult<Option<ActiveAttempt>> {
     let conn = db.0.lock().unwrap();
-    query_active_attempt_row(&conn)?
+    query_active_attempt_row(&conn, is_review)?
         .map(|row| hydrate_active_attempt(&conn, row))
         .transpose()
 }
@@ -523,31 +608,46 @@ pub fn start_attempt(
     is_review: bool,
     db: State<Db>,
 ) -> AppResult<ActiveAttempt> {
-    let conn = db.0.lock().unwrap();
-    let problem = query_problem(&conn, &problem_id)?;
-    if let Some(row) = query_active_attempt_row(&conn)? {
-        if row.1 == problem_id {
-            return Ok(ActiveAttempt {
-                id: row.0,
-                problem,
-                started_at: row.2,
-                paused_at: row.3,
-                paused_seconds: row.4,
-                notes: row.5,
-                is_review: row.6,
-            });
-        }
-        return Err(AppError::Message(
-            "Another focus session is active. Resume or end it before starting a new problem."
+    start_attempt_in_db(&mut db.0.lock().unwrap(), &problem_id, is_review)
+}
+
+fn pause_other_attempts(conn: &rusqlite::Connection, except_id: i64) -> AppResult<()> {
+    conn.execute("UPDATE attempts SET paused_at=? WHERE id<>? AND completed_at IS NULL AND abandoned_at IS NULL AND paused_at IS NULL",
+        params![Utc::now().to_rfc3339(), except_id])?;
+    Ok(())
+}
+
+fn start_attempt_in_db(
+    conn: &mut rusqlite::Connection,
+    problem_id: &str,
+    is_review: bool,
+) -> AppResult<ActiveAttempt> {
+    let tx = conn.transaction()?;
+    let problem = query_problem(&tx, problem_id)?;
+    if let Some(row) = query_active_attempt_row(&tx, is_review)? {
+        if row.1 != problem_id {
+            return Err(AppError::Message(
+                if is_review {
+                    "A review is already in progress. Resume or end it from Reviews first."
+                } else {
+                    "A focus session is already in progress. Resume or end it from Today first."
+                }
                 .into(),
-        ));
+            ));
+        }
+        pause_other_attempts(&tx, row.0)?;
+        let attempt = hydrate_active_attempt(&tx, row)?;
+        tx.commit()?;
+        return Ok(attempt);
     }
+    pause_other_attempts(&tx, -1)?;
     let now = Utc::now().to_rfc3339();
-    conn.execute(
+    tx.execute(
         "INSERT INTO attempts(problem_id,started_at,is_review) VALUES(?,?,?)",
         params![problem_id, now, is_review],
     )?;
-    let id = conn.last_insert_rowid();
+    let id = tx.last_insert_rowid();
+    tx.commit()?;
     Ok(ActiveAttempt {
         id,
         problem,
@@ -561,7 +661,11 @@ pub fn start_attempt(
 
 #[tauri::command]
 pub fn toggle_pause(attempt_id: i64, db: State<Db>) -> AppResult<()> {
-    let conn = db.0.lock().unwrap();
+    toggle_pause_in_db(&mut db.0.lock().unwrap(), attempt_id)
+}
+
+fn toggle_pause_in_db(db: &mut rusqlite::Connection, attempt_id: i64) -> AppResult<()> {
+    let conn = db.transaction()?;
     let paused: Option<Option<String>> = conn
         .query_row(
             "SELECT paused_at FROM attempts WHERE id=? AND completed_at IS NULL AND abandoned_at IS NULL",
@@ -575,6 +679,7 @@ pub fn toggle_pause(attempt_id: i64, db: State<Db>) -> AppResult<()> {
         ));
     };
     if let Some(at) = paused {
+        pause_other_attempts(&conn, attempt_id)?;
         let start = chrono::DateTime::parse_from_rfc3339(&at)
             .map_err(|e| AppError::Message(e.to_string()))?;
         let seconds = (Utc::now() - start.with_timezone(&Utc)).num_seconds();
@@ -588,6 +693,7 @@ pub fn toggle_pause(attempt_id: i64, db: State<Db>) -> AppResult<()> {
             params![Utc::now().to_rfc3339(), attempt_id],
         )?;
     }
+    conn.commit()?;
     Ok(())
 }
 
@@ -628,8 +734,14 @@ pub fn abandon_attempt(attempt_id: i64, db: State<Db>) -> AppResult<()> {
 
 #[tauri::command]
 pub fn finish_attempt(input: FinishAttemptInput, db: State<Db>) -> AppResult<JournalEntry> {
+    finish_attempt_in_db(&mut db.0.lock().unwrap(), input)
+}
+
+fn finish_attempt_in_db(
+    conn: &mut rusqlite::Connection,
+    input: FinishAttemptInput,
+) -> AppResult<JournalEntry> {
     validate_finish_input(&input)?;
-    let mut conn = db.0.lock().unwrap();
     let tx = conn.transaction()?;
     let now = Utc::now();
     let attempt: Option<(String, String, Option<String>, i64, bool)> = tx
@@ -703,7 +815,7 @@ pub fn finish_attempt(input: FinishAttemptInput, db: State<Db>) -> AppResult<Jou
     let daily_goal_seconds = daily_goal_minutes * 60;
     tx.execute("INSERT INTO daily_activity(date,focused_seconds,attempts_completed,goal_completed,xp_earned) VALUES(?,?,1,CASE WHEN ?>=? THEN 1 ELSE 0 END,?) ON CONFLICT(date) DO UPDATE SET focused_seconds=focused_seconds+excluded.focused_seconds,attempts_completed=attempts_completed+1,goal_completed=CASE WHEN daily_activity.focused_seconds+excluded.focused_seconds>=? THEN 1 ELSE daily_activity.goal_completed END,xp_earned=xp_earned+excluded.xp_earned",params![today,duration,duration,daily_goal_seconds,xp,daily_goal_seconds])?;
     tx.commit()?;
-    let problem = query_problem(&conn, &problem_id)?;
+    let problem = query_problem(conn, &problem_id)?;
     Ok(JournalEntry {
         id: input.attempt_id,
         problem,
@@ -844,8 +956,11 @@ pub fn save_settings(settings: AppSettings, db: State<Db>) -> AppResult<AppSetti
 }
 
 #[tauri::command]
-pub fn get_focus_context(db: State<Db>) -> AppResult<Option<FocusContext>> {
-    let attempt = match get_active_attempt(db.clone())? {
+pub fn get_focus_context(
+    db: State<Db>,
+    is_review: Option<bool>,
+) -> AppResult<Option<FocusContext>> {
+    let attempt = match get_active_attempt(db.clone(), is_review.unwrap_or(false))? {
         Some(a) => a,
         None => return Ok(None),
     };

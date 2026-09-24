@@ -74,7 +74,7 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
         <aside className="workspace-side">
           <div className="session-dock">
             <div className="workspace-clock">
-              <span className={attempt.pausedAt ? 'paused' : ''}>{attempt.pausedAt ? 'Paused' : 'Focus'}</span>
+              <span className={attempt.pausedAt ? 'paused' : ''}>{attempt.pausedAt ? 'Paused' : attempt.isReview ? 'Review' : 'Focus'}</span>
               <b>{time}</b>
               <button onClick={onPause} aria-label={attempt.pausedAt ? 'Resume timer' : 'Pause timer'}>
                 {attempt.pausedAt ? <Play size={15} /> : <Pause size={15} />}
@@ -88,7 +88,7 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
             </a>
           </div>
           <section className="focus-progress">
-            <div><span><Leaf size={13} />Focus goal</span><b>{percent}%</b></div>
+            <div><span><Leaf size={13} />{attempt.isReview ? 'Review goal' : 'Focus goal'}</span><b>{percent}%</b></div>
             <div className="focus-progress-track"><i style={{ width: `${percent}%` }} /></div>
             <small>{Math.max(0, context.targetMinutes - Math.floor(seconds / 60))} minutes remaining</small>
           </section>
@@ -117,7 +117,7 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
                   onKeyDown={onNotesKeyDown}
                   placeholder="Write notes, ask @qwen, or use @big-qwen with problem + code context…"
                 />
-                <div className="qwen-commands"><span><b>@qwen</b> general question</span><span><b>@big-qwen</b> problem + notes + live code</span></div>
+                <div className="qwen-commands"><span><b>@qwen</b> general question</span><span><b>@big-qwen</b> problem + live code</span></div>
               </section>
             )}
             {activeTool === 'hints' && (

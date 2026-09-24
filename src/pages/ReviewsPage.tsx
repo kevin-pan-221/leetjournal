@@ -1,10 +1,11 @@
 import { Check, ChevronRight, Sprout } from 'lucide-react'
-import type { Problem, Review } from '../domain'
+import type { FocusContext, Problem, Review } from '../domain'
 import { Card, Chip, EmptyState, PageHeader } from '../components/ui'
 import { formatReviewDate, localDateKey, reviewTiming } from '../utils/dates'
 
 interface ReviewsPageProps {
   reviews: Review[]
+  active: FocusContext | null
   onStart: (problem: Problem) => void
 }
 
@@ -33,7 +34,7 @@ function ReviewRow({ review, due, onStart }: { review: Review; due: boolean; onS
   )
 }
 
-export function ReviewsPage({ reviews, onStart }: ReviewsPageProps) {
+export function ReviewsPage({ reviews, active, onStart }: ReviewsPageProps) {
   const today = localDateKey()
   const due = reviews.filter((review) => review.nextReviewDate <= today)
   const upcoming = reviews.filter((review) => review.nextReviewDate > today)
@@ -45,6 +46,10 @@ export function ReviewsPage({ reviews, onStart }: ReviewsPageProps) {
   return (
     <div className="page reviews-page">
       <PageHeader title="Reviews" subtitle="Reinforce what you’ve learned." />
+      {active && <Card className="review-status">
+        <div><h2>Review in progress</h2><p>{active.attempt.problem.title}</p></div>
+        <button className="primary" onClick={() => onStart(active.attempt.problem)}>Resume review</button>
+      </Card>}
       {!reviews.length ? (
         <EmptyState
           title="No reviews scheduled yet"
