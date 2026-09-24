@@ -3,7 +3,6 @@ import type { Problem } from '../domain'
 interface QwenCommand {
   question: string
   includeContext: boolean
-  precedingNotes: string
 }
 
 export function parseQwenCommand(notes: string): QwenCommand | null {
@@ -13,27 +12,16 @@ export function parseQwenCommand(notes: string): QwenCommand | null {
   return {
     question: match[2].trim(),
     includeContext: Boolean(match[1]),
-    precedingNotes: notes.slice(0, lineStart).trim(),
   }
 }
 
 export function buildContextualPrompt(command: QwenCommand, problem: Problem, code: string): string {
+  const currentCode = code.trim()
+  const codeLimit = 24_000
   return [
-    'You are a concise coding coach helping with the current LeetCode problem. Use the supplied context, but do not reveal a complete solution unless the user explicitly asks for one.',
-    '',
+    'Be concise. Give hints, not a full solution, unless asked.',
     `Problem: ${problem.title}`,
-    `Category: ${problem.category}`,
-    `Difficulty: ${problem.difficulty}`,
-    `URL: ${problem.leetcodeUrl}`,
-    '',
-    'Session notes:',
-    command.precedingNotes || '(none)',
-    '',
-    'Current editor code:',
-    '--- CODE START ---',
-    code.slice(0, 24_000),
-    '--- CODE END ---',
-    '',
+    `Code:\n${currentCode.slice(0, codeLimit)}${currentCode.length > codeLimit ? '\n[Code truncated]' : ''}`,
     `Question: ${command.question}`,
-  ].join('\n')
+  ].join('\n\n')
 }

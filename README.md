@@ -37,7 +37,7 @@ LeetJournal brings planning, focused problem solving, reflection, and spaced rev
 - **Build durable recall.** Reflections feed a mastery-level spaced-review schedule rather than a fixed reminder interval.
 - **Keep a real learning record.** Attempts, notes, confidence, mistakes, streaks, and reviews live in a local SQLite database.
 - **Organize problems like books.** Browse NeetCode 150 and curated company-tagged collections, or create personal books and import LeetCode problem URLs in bulk.
-- **Ask a private local coach.** Optional `@qwen` commands stream from LM Studio; `@big-qwen` can include the active problem, notes, and live editor code.
+- **Ask a private local coach.** Optional `@qwen` commands stream from LM Studio; `@big-qwen` includes the active problem title and live editor code, without replaying notebook history.
 - **Make progress visible.** Solved problems and consistent practice gradually bring the garden world to life.
 
 ## Download and install
@@ -109,7 +109,7 @@ Press <kbd>Enter</kbd> to stream the response into the notebook. Use <kbd>Shift<
 | Command | Context sent to the local model |
 | --- | --- |
 | `@qwen` | Only the text after the command |
-| `@big-qwen` | Current problem, notebook, request, and live LeetCode editor code |
+| `@big-qwen` | Problem title, current request, and live LeetCode editor code (no notebook history) |
 
 LeetJournal uses Qwen 3.5 4B by default and supports choosing other downloaded language models. It loads the selected model on the first request, keeps it available for quick follow-ups, and unloads after 60 seconds of inactivity following a response. Leaving or finishing focus, or quitting LeetJournal normally, starts releasing it. No model is loaded at app startup. Reasoning is disabled where the selected model supports it.
 
@@ -235,4 +235,4 @@ npm run check:all
 npm run build
 ```
 
-Please keep data migrations backward-compatible, preserve the single-active-attempt invariant, and include tests for changes to scheduling, persistence, or curriculum data.
+Please keep data migrations backward-compatible, preserve independent focus/review attempts with only one running timer, and include tests for changes to scheduling, persistence, or curriculum data.
