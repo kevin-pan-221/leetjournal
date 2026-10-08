@@ -59,23 +59,60 @@ garden work without it. LeetCode itself needs an internet connection.
 
 ## Build from source (contributors)
 
-### Prerequisites
-
-- macOS
-- [Node.js](https://nodejs.org/) 20.19 or newer (or 22.12 or newer)
-- The [stable Rust toolchain](https://www.rust-lang.org/tools/install)
-- Xcode Command Line Tools: `xcode-select --install`
-
-### Run the desktop app
+### Clone, set up, run
 
 ```bash
 git clone https://github.com/kevin-pan-221/leetjournal.git
 cd leetjournal
-npm ci
-npm run desktop
+./setup.sh --run
 ```
 
-The first Rust build takes longer because Cargo compiles the native dependencies. Subsequent launches are much faster.
+The setup command checks your tools, installs the locked project dependencies,
+and launches the desktop app. The first Rust build takes several minutes;
+subsequent launches are faster. Keep the terminal open and press **Ctrl+C** to
+stop development. On later launches, use `npm run desktop`.
+
+**Missing tools?** The script lists exactly what you need. To let it install
+missing tools, explicitly opt in:
+
+```bash
+./setup.sh --install-tools --run
+```
+
+This uses an existing Homebrew installation for Node 24 and official rustup for
+stable Rust. If Apple build tools are missing, it opens Apple's installer and
+asks you to finish it before rerunning setup. Without Homebrew, install Node
+from the [official download page](https://nodejs.org/en/download) first.
+The script does not install Homebrew, run sudo, edit your shell profile, start
+LM Studio/Spotify, download AI models, or touch your journal data.
+
+Supported source environment: macOS, **Node 24 recommended** (Node 22.x from
+22.18 also supported; `.nvmrc` selects 24), stable Rust, and Xcode Command Line Tools.
+See [Tauri's macOS prerequisites](https://v2.tauri.app/start/prerequisites/#macos)
+for manual installation. Building from source needs these tools; installing a
+published `.dmg` does not.
+
+### Setup and troubleshooting
+
+```bash
+./setup.sh          # Install project dependencies without opening the app
+./setup.sh --check  # Read-only prerequisite diagnosis; no downloads
+```
+
+Already have Node? `npm run setup` and `npm run doctor` are equivalent shortcuts.
+Setup can be rerun after pulling updates or after a failed download. It uses
+`npm ci` (recreates `node_modules`) and `cargo fetch --locked` for your Mac's
+native architecture, avoiding unnecessary cross-platform downloads. It does not
+regenerate lockfiles. If Homebrew/Rust tools aren't on your terminal's PATH,
+`./setup.sh --run` can discover their standard installation paths for that run.
+
+- **Apple tool or license error:** finish `xcode-select --install`, or open Xcode
+  to review its license, then rerun setup.
+- **Dependency download failed:** check your connection and the error printed
+  above the setup message, then rerun. No clean/reset is needed.
+- **Rust too old:** update your installed stable toolchain with `rustup update stable`.
+- **App doesn't launch:** use `npm run desktop`, not `npm run dev` (frontend only).
+- **Optional AI setup:** see the LM Studio section below; it is not a prerequisite.
 
 ### Build a macOS app
 
@@ -226,11 +263,14 @@ npm test
 
 | Script | Purpose |
 | --- | --- |
+| `./setup.sh --run` | Check prerequisites, install dependencies, and start the app |
+| `npm run doctor` | Check prerequisites without installing anything |
 | `npm run desktop` | Start Vite and the native Tauri development app |
 | `npm run dev` | Start only the Vite frontend |
 | `npm run check` | Run the strict TypeScript build check |
 | `npm run check:all` | Run the complete project quality gate |
 | `npm test` | Run the Rust test suite |
+| `npm run test:unit` | Run JavaScript/TypeScript and setup-script regression tests |
 | `npm run build` | Build production frontend assets |
 
 ## Architecture
@@ -248,7 +288,8 @@ src/
 src-tauri/src/
 ├── commands.rs      validated SQLite-backed application operations
 ├── qwen/            LM Studio lifecycle, inference, and stream decoding
-├── workspace.rs     embedded LeetCode geometry, editor access, and shortcut commands
+├── browser_surface.rs native browser framing and clipping
+├── workspace.rs     LeetCode editor access and shortcut commands
 ├── db.rs            SQLite schema, migrations, and curriculum seeding
 ├── models.rs        serialized native domain models
 ├── error.rs         typed command errors

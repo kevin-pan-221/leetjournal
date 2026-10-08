@@ -3,12 +3,18 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=24.0.0"
+  },
   "scripts": {
+    "setup": "bash setup.sh",
+    "doctor": "bash setup.sh --check",
     "dev": "vite",
     "tauri": "tauri",
     "desktop": "tauri dev",
     "check": "tsc -b",
-    "check:all": "npm run check && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && npm test",
+    "check:all": "npm run check && npm run test:unit && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && npm test",
+    "test:unit": "node --experimental-strip-types --test tests/*.test.mjs",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
