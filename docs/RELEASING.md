@@ -1,51 +1,106 @@
-# Releasing LeetJournal
+# Shipping LeetJournal for Mac
 
-The release workflow builds an Apple Silicon macOS DMG on GitHub. End users
-do not need Rust, Node.js, Xcode, or Git. Intel Mac, Windows, and Linux releases
-are not yet supported by this workflow.
+Users download a `.dmg`, drag LeetJournal into Applications, and open it. They
+do not need Git, Node, Rust, or our source setup script. AI and Spotify remain
+optional, separately installed integrations. The current release target is
+Apple Silicon only; do not advertise Intel, Windows, or Linux binaries.
 
-## Test without publishing
+## One-time Apple setup (account owner)
 
-After the workflow is pushed, open **Actions → Build macOS release → Run workflow**.
-This runs the quality checks and builds a DMG available in the run's artifacts.
-A manual branch run does not create a release. Download and extract the artifact
-ZIP, then test the DMG on an Apple Silicon Mac.
+You need an enrolled Apple Developer Program account for Developer ID signing
+and notarization. An App Store listing is not needed.
 
-## Create a release
+1. Create a **Developer ID Application** certificate in
+   [Apple Certificates](https://developer.apple.com/account/resources/certificates/list),
+   install it with its private key in Keychain Access, and export it as a
+   password-protected `.p12`. A certificate without its private key cannot sign.
+2. Add the following repository secrets under
+   [Settings → Secrets and variables → Actions](https://github.com/kevin-pan-221/leetjournal/settings/secrets/actions).
+   Never paste their values in an issue, chat, source file, workflow, or log.
 
-1. Set the same version in `package.json`, `package-lock.json` (root and root
-   package), `src-tauri/tauri.conf.json`, and the package version in
-   `src-tauri/Cargo.toml`. Refresh `src-tauri/Cargo.lock` with Cargo.
-2. Run `npm ci` and `npm run check:all`, then commit the release changes.
-3. Push the commit and a matching version tag, for example:
+   | Secret | Value |
+   | --- | --- |
+   | `APPLE_CERTIFICATE` | Base64-encoded exported `.p12`, including private key |
+   | `APPLE_CERTIFICATE_PASSWORD` | Export password for that `.p12` |
+   | `APPLE_SIGNING_IDENTITY` | Full `Developer ID Application: Name (TEAMID)` identity |
+   | `APPLE_ID` | Apple account email used for notarization |
+   | `APPLE_PASSWORD` | **App-specific password**, never the account's normal password |
+   | `APPLE_TEAM_ID` | Apple Developer membership Team ID |
+
+   To upload the exported certificate without printing it or creating a base64
+   file in the repository, use the GitHub CLI from a trusted machine:
 
    ```bash
-   git tag -a v0.1.0 -m "LeetJournal v0.1.0"
-   git push origin main
-   git push origin v0.1.0
+   openssl base64 -A -in /absolute/path/to/certificate.p12 | gh secret set APPLE_CERTIFICATE --repo kevin-pan-221/leetjournal
    ```
 
-4. Wait for **Build macOS release** to finish. It creates a **draft**, not a
-   public release. Do not reuse or move a published version tag.
-5. Download the DMG from the draft and test installing into Applications,
-   opening without developer tools, embedded LeetCode login, focus/reflection,
-   journal editing, and operation without LM Studio installed.
-6. Test optional Qwen with the server running and stopped. Confirm model release
-   after inactivity and leaving focus. Check upgrade behavior with existing data.
-7. Add release notes and publish the draft. The README download link then exposes
-   the installer to users.
+   Keep the export in a secure location outside the repository. Use GitHub's
+   secret-entry UI for the other values. Create an
+   [app-specific password](https://support.apple.com/en-us/102654) in your Apple
+   account. Revoke and rotate credentials if exposed.
 
-The workflow uses GitHub's built-in token with release-write permission; no
-personal access token is needed. Checks must pass before packaging.
+The workflow passes these credentials to Tauri's signing/notarization support.
+It never falls back to ad-hoc signing when a credential is missing. Configuration
+validation only checks presence and identity type; Apple validates the actual
+certificate, account, and password during the build.
 
-## Signing
+Reference: [Tauri macOS signing and notarization](https://v2.tauri.app/distribute/sign/macos/).
 
-Current builds use an **ad-hoc** signing identity. This is not Developer ID
-signing or notarization, so Gatekeeper may prompt users. Never instruct users to
-disable Gatekeeper globally.
+## Prepare a fresh release
 
-For smoother public distribution, configure an Apple Developer ID certificate
-and notarization credentials as repository secrets following
-[Tauri's macOS signing guide](https://v2.tauri.app/distribute/sign/macos/), and
-replace the ad-hoc identity in the workflow. Do not commit certificates,
-passwords, or private keys. Verify notarization before advertising a signed release.
+The historical `v0.1.0` draft is an old ad-hoc build. Do not publish it as the
+signed release or move its tag. Use a fresh version (for example, `0.1.1`).
+
+1. Update the version in `package.json`, both root version fields in
+   `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and
+   the `leetjournal` package entry in `src-tauri/Cargo.lock`.
+2. Run `npm ci`, `npm run check:all`, and `npm run build`. Commit and push.
+3. Create and push an annotated tag matching the version:
+
+   ```bash
+   git tag -a v0.1.1 -m 'LeetJournal 0.1.1'
+   git push origin v0.1.1
+   ```
+
+   Use the chosen new version consistently; the command above is an example,
+   not permission to reuse an existing tag.
+4. Watch **Build macOS release** in Actions. It builds the signed app and DMG,
+   notarizes through Apple, validates the app's signature and stapled ticket,
+   checks Gatekeeper acceptance and disk-image integrity, and adds SHA-256
+   checksums. Only then does it create a **draft** release.
+
+Manual workflow runs must also target a matching version tag, not `main`.
+Reruns never overwrite an existing release. If draft creation succeeded but a
+later artifact-upload step failed, inspect the existing draft instead of
+deleting/recreating it automatically. If a credential fails, fix the secret and
+rerun the failed workflow; do not bypass the signing checks.
+
+## Test the actual download before publishing
+
+On a separate Mac or clean macOS user account, download the draft DMG through
+the browser (preserving macOS quarantine), then:
+
+- Open it, drag the app to Applications, eject the disk image, and launch the
+  installed copy. No terminal commands or security bypass should be needed.
+  The normal first-open downloaded-app confirmation is expected.
+- Start focus, resize and enter/leave full screen, sign in to LeetCode, use
+  Escape, finish and reflect, and confirm journal/review persistence on relaunch.
+- Verify the core app works with no LM Studio installed. Separately test Local
+  AI onboarding and optional Spotify Automation permission from the signed app.
+  Test AI with the server running and stopped, and confirm model release after
+  inactivity and leaving focus.
+- Test upgrading an existing installation without deleting its user data.
+
+Do not label a release ready based only on CI: signing credentials and the
+downloaded installation experience require real end-to-end verification.
+
+## Publish
+
+After the installation smoke test passes, add user-facing release notes and
+click **Publish release** in GitHub. Confirm the public DMG is available from
+the README's download link. A normal push to `main` only runs checks; it neither
+creates an installer nor publishes a release. Tags create drafts, not public
+releases. No automatic in-app updater is implemented yet.
+
+GitHub's built-in workflow token handles release uploads; no personal access
+token is needed for CI.

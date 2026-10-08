@@ -6,3 +6,8 @@ src-tauri/target/
 *.sqlite3-shm
 *.sqlite3-wal
 *.tsbuildinfo
+# Signing material must never enter source control.
+*.p12
+*.p8
+*.mobileprovision
+certificate-base64.txt

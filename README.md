@@ -49,10 +49,15 @@ For Apple Silicon Macs (M1 or newer): open a release, download its `.dmg` from
 Rust, Node.js, or developer tools are needed. If no release has been published
 yet, there is not yet a public installer; use the source instructions below.
 
-The initial releases are ad-hoc signed, not Apple-notarized. If macOS blocks
-opening a download you trust from this repository, use **System Settings →
-Privacy & Security → Open Anyway** after attempting to open it. Do not disable
-system-wide security protections.
+The public download is awaiting Apple signing setup; the old `v0.1.0` draft is
+not a public installer. New releases must pass Developer ID signature and Apple
+notarization checks before a release draft is created. Before publishing, each
+draft must pass the download → drag to Applications → open test. macOS may
+still ask you to confirm the first launch of an app downloaded from the internet.
+Do not disable system-wide security protections.
+
+Maintainers: see [the release checklist](docs/RELEASING.md) for the one-time
+Apple setup, build verification, installation testing, and publishing steps.
 
 LM Studio is **optional**. Planning, focus, notes, journal, reviews, and the
 garden work without it. LeetCode itself needs an internet connection.

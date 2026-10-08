@@ -24,6 +24,15 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: npm
+      - name: Require release tag and Apple credentials
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node scripts/check-release.mjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
@@ -32,44 +41,52 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
-      - name: Check release version
-        shell: bash
-        run: |
-          node --input-type=module <<'JS'
-          import fs from 'node:fs';
-          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'));
-          const version = read('package.json').version;
-          const cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = "([^"]+)"/m)?.[1];
-          if (read('src-tauri/tauri.conf.json').version !== version || cargo !== version || read('package-lock.json').packages[''].version !== version) {
-            throw new Error('App, package, lockfile, and Cargo versions must match.');
-          }
-          if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${version}`) {
-            throw new Error(`Expected tag v${version}.`);
-          }
-          JS
       - run: npm run check:all
-      - name: Build installer and draft release
+      - name: Build signed and notarized installer
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Ad-hoc signed, not Developer ID signed or notarized.
-          APPLE_SIGNING_IDENTITY: '-'
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: --target aarch64-apple-darwin --bundles app,dmg
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: LeetJournal v__VERSION__
-          releaseDraft: true
           includeUpdaterJson: false
-          releaseBody: |
-            Download the Apple Silicon macOS .dmg, open it, and drag LeetJournal into Applications.
-            No Rust, Node.js, or Git installation is required.
-
-            This build is ad-hoc signed, not Apple-notarized; macOS may ask for approval under System Settings → Privacy & Security.
-            LM Studio and a downloaded Qwen 3.5 4B model are optional and are not included.
-      - name: Retain installer for manual test builds
+      - name: Verify signature, notarization, and disk image
+        shell: bash
+        run: |
+          set -euo pipefail
+          app='src-tauri/target/aarch64-apple-darwin/release/bundle/macos/LeetJournal.app'
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          cd src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
+          images=(*.dmg)
+          [[ ${#images[@]} -eq 1 && -f "${images[0]}" ]]
+          hdiutil verify "${images[0]}"
+          shasum -a 256 "${images[0]}" > SHA256SUMS.txt
+      # No release is created until every verification above has passed.
+      # Existing releases are never overwritten by a rerun.
+      - name: Create verified draft for installation testing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag --draft --title "LeetJournal $GITHUB_REF_NAME" \
+            --notes 'For Apple Silicon Macs: download the .dmg, open it, and drag LeetJournal into Applications. No developer tools required. Developer ID signed and Apple-notarized. LM Studio, AI models, and Spotify are optional and installed separately.' \
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg \
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS.txt
+      - name: Retain verified installer
         uses: actions/upload-artifact@v4
         with:
           name: LeetJournal-macOS-Apple-Silicon
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          path: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
