@@ -10,7 +10,8 @@
       "allow": [
         { "url": "https://leetcode.com/*" },
         { "url": "https://www.leetcode.com/*" },
-        { "url": "https://lmstudio.ai/docs/developer/core/headless" }
+        { "url": "https://lmstudio.ai/docs/developer/core/headless" },
+        { "url": "https://open.spotify.com/*" }
       ]
     },
     "core:webview:allow-create-webview",

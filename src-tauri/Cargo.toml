@@ -22,9 +22,11 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 futures-util = "0.3"
-tokio = { version = "1", features = ["time", "process"] }
+tokio = { version = "1", features = ["time", "process", "sync", "macros"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent", "NSView", "objc2-quartz-core", "block2"] }
-objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer", "objc2-core-foundation"] }
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSDistributedNotificationCenter", "NSNotification", "NSOperation", "NSString", "block2"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent", "NSView", "NSWindow", "NSColor", "objc2-core-graphics", "objc2-quartz-core", "block2"] }
+objc2-quartz-core = { version = "0.3", default-features = false, features = ["std", "CALayer", "CATransaction", "objc2-core-graphics", "objc2-core-foundation"] }

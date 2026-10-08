@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import { SpotifyProvider } from './spotify/SpotifyProvider'
+import './spotify/spotify.css'
 import './styles.css'
 import './extras.css'
 import './curriculum.css'
@@ -15,5 +17,5 @@ import './leave-session.css'
 import './workflow.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><App /></React.StrictMode>,
+  <React.StrictMode><SpotifyProvider><App /></SpotifyProvider></React.StrictMode>,
 )

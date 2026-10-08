@@ -15,6 +15,7 @@ import { useFocusNotebook } from '../hooks/useFocusNotebook'
 import type { AppSettings, FocusContext } from '../domain'
 import { LeetCodeWorkspace } from '../LeetCodeWorkspace'
 import { Plant } from '../components/Plant'
+import { SpotifyPlayer } from '../spotify/SpotifyPlayer'
 
 interface FocusPageProps {
   context: FocusContext | null
@@ -61,11 +62,11 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
   const time = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
   const percent = Math.min(Math.round(seconds / (context.targetMinutes * 60) * 100), 100)
 
-  const toggleTools = () => setToolsOpen((current) => {
-    const next = !current
+  const toggleTools = () => {
+    const next = !toolsOpen
     localStorage.setItem('leetjournal.focus.tools', next ? 'open' : 'closed')
-    return next
-  })
+    setToolsOpen(next)
+  }
 
   return (
     <div className="focus-workspace">
@@ -133,6 +134,7 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
               </section>
             )}
           </div>
+          <SpotifyPlayer visible={toolsOpen && !obscured} />
           <button className="primary finish" disabled={qwenRunning} title={qwenRunning ? 'Stop the response or wait for it to finish before reflecting' : undefined} onClick={() => onFinish(notes)}><Check size={17} />Finish &amp; reflect</button>
         </aside>
       </div>

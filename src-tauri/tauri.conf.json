@@ -29,7 +29,7 @@
         "font-src": "'self' data:",
         "form-action": "'none'",
         "frame-src": "'none'",
-        "img-src": "'self' asset: http://asset.localhost data: blob:",
+        "img-src": "'self' asset: http://asset.localhost data: blob: https://i.scdn.co",
         "object-src": "'none'",
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
@@ -43,6 +43,7 @@
   },
   "bundle": {
     "active": true,
+    "macOS": { "entitlements": "Entitlements.plist" },
     "targets": "all",
     "icon": [
       "icons/32x32.png",

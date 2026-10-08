@@ -144,6 +144,39 @@ Alternatively, LM Studio's **run server on login** setting supports background
 operation after closing its desktop UI. See the guide above for the behavior of
 your installed version. Neither option requires keeping a model loaded.
 
+## Optional: Spotify remote (macOS)
+
+The focus sidebar can control Spotify playback without embedding another browser
+or audio engine. Music continues independently when you pause or finish a session.
+The compact widget shows the current song with seeking and playback controls.
+Spotify preferences remain in the main Settings page; Escape still offers to leave focus.
+
+Setup in **Settings → Spotify**:
+
+1. Install the Spotify desktop app and sign in there.
+2. Choose **Enable Spotify** in LeetJournal (also available from the focus sidebar).
+3. Allow LeetJournal to control Spotify when macOS asks.
+4. Choose music in Spotify; LeetJournal shows the song, artist, artwork and playback controls.
+
+No Client ID, developer account, browser authorization or stored Spotify tokens.
+LeetJournal uses Spotify's local macOS scripting interface. Playlist browsing and
+device switching stay in Spotify. Account-specific playback restrictions still apply.
+If access is denied, allow **LeetJournal → Spotify** under **System Settings →
+Privacy & Security → Automation**, then retry. Test permission prompts from the
+packaged `.app`; a development terminal may be identified differently by macOS.
+
+Only an enabled/disabled preference is stored locally. Disabling the integration
+stops updates without stopping music; revoke macOS Automation permission separately
+if desired. Ending a focus session or quitting never sends a playback command.
+The widget keeps artwork, song/artist, playing/paused state and a seekable progress
+bar visible. Adjust volume in Spotify. While the player and app document
+are visible, Spotify's desktop playback-change notifications trigger a fresh read.
+Two-second checks, returning to the app, and post-control refreshes provide a fallback.
+Changes arriving during a read are checked again, rather than dropped. Errors use
+slower retries and are shown explicitly instead of letting the progress clock drift.
+Closing Spotify does not relaunch it in the background; reopen it yourself when ready.
+The idle widget has no launch prompt. Music metadata is never sent to Qwen.
+
 ## Everyday workflow
 
 1. Pick the warm-up or main problem from **Today's Plan**.
@@ -173,6 +206,9 @@ Back up the SQLite file before resetting or moving application data. The `-wal` 
 
 Maintainers: see [Releasing LeetJournal](docs/RELEASING.md) for automated DMG
 builds, draft releases, and signing setup.
+
+The [browser surface guide](docs/BROWSER_SURFACE.md) explains native framing and
+includes an isolated window/fullscreen regression test.
 
 ```bash
 # Frontend type-check

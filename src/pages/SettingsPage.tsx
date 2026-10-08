@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AppSettings } from '../domain'
 import { Card, PageHeader } from '../components/ui'
 import { LocalAiSettings } from '../components/LocalAiSettings'
+import { SpotifySettings } from '../spotify/SpotifySettings'
 import { errorMessage } from '../utils/errors'
 
 interface SettingsPageProps {
@@ -62,6 +63,7 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         <label><span>Theme<small>Keep things calm and comfortable</small></span><select value={draft.theme} onChange={(event) => patch('theme', event.target.value)}><option value="warm-garden">Warm garden</option><option value="system">System</option></select></label>
       </Card>
       <LocalAiSettings value={draft.localModel} disabled={saving} onChange={(value) => patch('localModel', value)} />
+      <SpotifySettings />
       {saveError && <p role="alert">{saveError}</p>}
       <button className="primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save settings'}</button>
     </div>

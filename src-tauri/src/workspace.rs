@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 use tauri::{AppHandle, Manager, State};
 
 fn leetcode_webview(app: &AppHandle, label: &str) -> AppResult<tauri::Webview> {
-    if !label.starts_with("leetcode-workspace-") {
+    if !label.starts_with("browser-surface-") {
         return Err(AppError::Message("Invalid LeetCode workspace".into()));
     }
     app.get_webview(label)
@@ -54,52 +54,5 @@ pub fn set_focus_shortcut_enabled(
     shortcut
         .item
         .set_enabled(enabled)
-        .map_err(|error| AppError::Message(error.to_string()))
-}
-
-#[cfg(target_os = "macos")]
-fn clip_leetcode_webview(webview: &tauri::Webview) -> AppResult<()> {
-    webview
-        .with_webview(|platform| unsafe {
-            let view: &objc2_app_kit::NSView = &*platform.inner().cast();
-            view.setWantsLayer(true);
-            if let Some(layer) = view.layer() {
-                layer.setCornerRadius(12.0);
-                layer.setMasksToBounds(true);
-            }
-        })
-        .map_err(|error| AppError::Message(error.to_string()))
-}
-
-#[cfg(not(target_os = "macos"))]
-fn clip_leetcode_webview(_webview: &tauri::Webview) -> AppResult<()> {
-    Ok(())
-}
-
-#[tauri::command]
-pub fn set_leetcode_webview_bounds(
-    app: AppHandle,
-    webview_label: String,
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-) -> AppResult<()> {
-    if !x.is_finite()
-        || !y.is_finite()
-        || !width.is_finite()
-        || !height.is_finite()
-        || width < 1.0
-        || height < 1.0
-    {
-        return Err(AppError::Message("Invalid workspace bounds".into()));
-    }
-    let webview = leetcode_webview(&app, &webview_label)?;
-    clip_leetcode_webview(&webview)?;
-    webview
-        .set_bounds(tauri::Rect {
-            position: tauri::LogicalPosition::new(x, y).into(),
-            size: tauri::LogicalSize::new(width, height).into(),
-        })
         .map_err(|error| AppError::Message(error.to_string()))
 }

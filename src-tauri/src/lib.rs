@@ -1,8 +1,10 @@
+mod browser_surface;
 mod commands;
 mod db;
 mod error;
 mod models;
 mod qwen;
+mod spotify;
 mod workspace;
 
 use std::sync::{
@@ -77,6 +79,9 @@ pub fn run() {
             let db = db::initialize(app.handle())?;
             app.manage(db);
             app.manage(qwen::QwenRuntime::default());
+            app.manage(spotify::SpotifyRuntime::default());
+            #[cfg(target_os = "macos")]
+            spotify::notifications::install(app.handle().clone());
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -86,6 +91,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            spotify::spotify_status,
+            spotify::spotify_connect,
+            spotify::spotify_disconnect,
+            spotify::spotify_playback,
+            spotify::spotify_control,
             commands::start_attempt,
             commands::toggle_pause,
             commands::pause_attempt,
@@ -116,7 +126,8 @@ pub fn run() {
             qwen::unload_qwen,
             workspace::get_leetcode_editor_code,
             workspace::set_focus_shortcut_enabled,
-            workspace::set_leetcode_webview_bounds
+            browser_surface::sync_browser_surface,
+            browser_surface::dispose_browser_surface
         ])
         .build(tauri::generate_context!())
         .expect("error while building LeetJournal")
