@@ -2,13 +2,11 @@ export type Page =
   | 'today'
   | 'focus'
   | 'review-focus'
-  | 'garden-focus'
   | 'problems'
   | 'journal'
-  | 'reviews'
-  | 'garden'
+  | 'study'
   | 'settings'
 
 export function isFocusPage(page: Page): boolean {
-  return page === 'focus' || page === 'review-focus' || page === 'garden-focus'
+  return page === 'focus' || page === 'review-focus'
 }

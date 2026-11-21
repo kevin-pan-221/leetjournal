@@ -1,3 +1,11 @@
+.today-grid .plan-card {
+  grid-row: auto;
+}
+
+.today-grid .start-row {
+  grid-column: 1;
+}
+
 .journal-entry {
   width: 100%;
   color: inherit;

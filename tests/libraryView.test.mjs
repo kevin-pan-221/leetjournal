@@ -20,6 +20,15 @@ test('library views survive remounts and stay independent per book', () => {
   assert.deepEqual(readBookView('neetcode'), view)
 })
 
+test('retired review-due filters reset without losing other view settings', () => {
+  globalThis.localStorage = { getItem: () => JSON.stringify({
+    query: 'tree', difficulty: 'Medium', status: 'Review Due', category: 'Trees',
+  }) }
+  assert.deepEqual(readBookView('neetcode'), {
+    query: 'tree', difficulty: 'Medium', status: 'All', category: 'Trees',
+  })
+})
+
 test('invalid or unavailable storage falls back safely', () => {
   globalThis.localStorage = { getItem: () => '{broken' }
   assert.deepEqual(readBookView('neetcode'), defaultBookView)

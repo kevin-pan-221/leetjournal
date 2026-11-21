@@ -31,7 +31,7 @@
         "frame-src": "'none'",
         "img-src": "'self' asset: http://asset.localhost data: blob: https://i.scdn.co",
         "object-src": "'none'",
-        "script-src": "'self'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
         "style-src": "'self' 'unsafe-inline'",
         "worker-src": "'self' blob:"
       },

@@ -1,13 +1,12 @@
 import {
   BookOpen,
-  CalendarDays,
   Clock3,
   Home,
   ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  Sprout,
+  Sparkles,
 } from 'lucide-react'
 import type { Page } from '../app/page'
 
@@ -16,8 +15,7 @@ const navigation = [
   ['focus', Clock3, 'Focus'],
   ['problems', ListChecks, 'Library'],
   ['journal', BookOpen, 'Journal'],
-  ['reviews', CalendarDays, 'Reviews'],
-  ['garden', Sprout, 'Garden'],
+  ['study', Sparkles, 'Study'],
   ['settings', Settings, 'Settings'],
 ] as const
 
@@ -48,6 +46,7 @@ export function Sidebar({ page, name, collapsed, hidden, onNavigate, onToggle }:
         {navigation.map(([id, Icon, label]) => (
           <button
             key={id}
+            aria-label={label}
             className={page === id ? 'active' : ''}
             onClick={() => onNavigate(id)}
             title={collapsed ? label : undefined}

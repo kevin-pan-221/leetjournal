@@ -37,7 +37,7 @@ export function readBookView(id: string): BookView {
     query: typeof saved.query === 'string' ? saved.query : '',
     category: typeof saved.category === 'string' ? saved.category : 'All',
     difficulty: ['All', 'Easy', 'Medium', 'Hard'].includes(String(saved.difficulty)) ? String(saved.difficulty) : 'All',
-    status: ['All', 'Unseen', 'Attempted', 'Solved', 'Review Due'].includes(String(saved.status)) ? String(saved.status) : 'All',
+    status: ['All', 'Unseen', 'Attempted', 'Solved', 'Saved offline'].includes(String(saved.status)) ? String(saved.status) : 'All',
   }
 }
 

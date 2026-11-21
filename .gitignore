@@ -1,5 +1,7 @@
 node_modules/
+public/python/
 dist/
+dist-offline-qa/
 src-tauri/target/
 .DS_Store
 *.sqlite3

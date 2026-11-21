@@ -9,7 +9,6 @@ use tauri::State;
 
 type ActiveAttemptRow = (i64, String, String, Option<String>, i64, String, bool);
 
-const REVIEW_QUERY: &str = "SELECT p.id,p.title,p.category,p.difficulty,p.leetcode_url,p.neetcode_url,p.order_index,p.category_order,r.next_review_date,r.review_level,COALESCE((SELECT outcome FROM attempts WHERE problem_id=p.id AND completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1),'Attempted') FROM reviews r JOIN problems p ON p.id=r.problem_id WHERE (?1 IS NULL OR r.next_review_date<=?1) ORDER BY r.next_review_date,p.order_index LIMIT ?2";
 const VALID_OUTCOMES: [&str; 5] = [
     "Easy",
     "Solved",
@@ -30,42 +29,6 @@ const VALID_MISTAKES: [&str; 8] = [
 
 fn query_problem(conn: &rusqlite::Connection, id: &str) -> AppResult<Problem> {
     Ok(conn.query_row("SELECT id,title,category,difficulty,leetcode_url,neetcode_url,order_index,category_order FROM problems WHERE id=?", [id], map_problem)?)
-}
-
-fn map_review(row: &rusqlite::Row<'_>) -> rusqlite::Result<ReviewItem> {
-    Ok(ReviewItem {
-        problem: Problem {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            category: row.get(2)?,
-            difficulty: row.get(3)?,
-            leetcode_url: row.get(4)?,
-            neetcode_url: row.get(5)?,
-            order_index: row.get(6)?,
-            category_order: row.get(7)?,
-        },
-        next_review_date: row.get(8)?,
-        review_level: row.get(9)?,
-        last_outcome: row.get(10)?,
-    })
-}
-
-fn query_reviews(
-    conn: &rusqlite::Connection,
-    due_on_or_before: Option<&str>,
-    limit: Option<usize>,
-) -> AppResult<Vec<ReviewItem>> {
-    let mut statement = conn.prepare(REVIEW_QUERY)?;
-    let rows = statement
-        .query_map(
-            params![
-                due_on_or_before,
-                limit.map_or(i64::MAX, |value| value as i64)
-            ],
-            map_review,
-        )?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
 }
 
 fn query_active_attempt_row(
@@ -123,26 +86,6 @@ pub(crate) fn read_settings(conn: &rusqlite::Connection) -> AppSettings {
     }
 }
 
-const REVIEW_INTERVAL_DAYS: [i64; 7] = [1, 3, 7, 14, 30, 60, 120];
-
-fn review_schedule(current_level: i32, outcome: &str, confidence: i32) -> (i32, i64) {
-    let current = current_level.clamp(0, REVIEW_INTERVAL_DAYS.len() as i32 - 1);
-    let mut next = match outcome {
-        "Easy" => current + 2,
-        "Solved" => current + 1,
-        "Struggled" => current - 1,
-        "Needed hint" => current - 2,
-        _ => 0,
-    };
-    if matches!(outcome, "Easy" | "Solved") && confidence == 5 {
-        next += 1;
-    } else if outcome != "Couldn't solve" && confidence <= 2 {
-        next -= 1;
-    }
-    let level = next.clamp(0, REVIEW_INTERVAL_DAYS.len() as i32 - 1);
-    (level, REVIEW_INTERVAL_DAYS[level as usize])
-}
-
 fn validate_finish_input(input: &FinishAttemptInput) -> AppResult<()> {
     if !VALID_OUTCOMES.contains(&input.outcome.as_str()) {
         return Err(AppError::Message("Choose a valid session outcome".into()));
@@ -185,78 +128,38 @@ fn plant_progress(xp: i32) -> (String, i32, i32, i32) {
     (name.into(), index as i32 + 1, floor, next)
 }
 
-pub(crate) fn garden_stage_for(practiced: u32) -> GardenStage {
-    match practiced {
-        0..=10 => GardenStage::OpenField,
-        11..=30 => GardenStage::YoungGrove,
-        31..=60 => GardenStage::Meadow,
-        61..=90 => GardenStage::Homestead,
-        91..=120 => GardenStage::Valley,
-        _ => GardenStage::Countryside,
-    }
-}
-
-pub(crate) fn garden_vitality_for(
-    days_since_practice: Option<i64>,
-    reviews_due: u32,
-    significantly_overdue: u32,
-) -> GardenVitality {
-    match days_since_practice {
-        Some(days) if days <= 2 && significantly_overdue == 0 && reviews_due <= 2 => {
-            GardenVitality::Thriving
-        }
-        None | Some(6..) => GardenVitality::NeedsCare,
-        _ if significantly_overdue >= 3 || reviews_due >= 5 => GardenVitality::NeedsCare,
-        _ => GardenVitality::Calm,
-    }
-}
-
 pub fn get_today_plan(db: State<Db>) -> AppResult<TodayPlan> {
     let conn = db.0.lock().unwrap();
+    query_today_plan(&conn)
+}
+
+fn query_today_plan(conn: &rusqlite::Connection) -> AppResult<TodayPlan> {
     let today = Local::now().date_naive().to_string();
-    let automatic_main: String = conn.query_row("SELECT p.id FROM problems p WHERE p.is_curriculum=1 AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.problem_id=p.id AND a.completed_at IS NOT NULL) ORDER BY p.order_index LIMIT 1", [], |r| r.get(0)).optional()?.or_else(|| conn.query_row("SELECT id FROM problems WHERE is_curriculum=1 ORDER BY order_index LIMIT 1", [], |r|r.get(0)).optional().ok().flatten()).ok_or_else(||AppError::Message("The curriculum is empty".into()))?;
-    let unseen_id: String = conn
-        .query_row(
-            "SELECT problem_id FROM daily_plan WHERE date=? AND kind='Main problem'",
-            [&today],
-            |r| r.get(0),
-        )
-        .optional()?
-        .unwrap_or(automatic_main);
-    let automatic_warm: String = conn.query_row("SELECT p.id FROM problems p JOIN attempts a ON a.problem_id=p.id AND a.completed_at IS NOT NULL WHERE p.is_curriculum=1 AND p.difficulty='Easy' AND p.id<>? GROUP BY p.id ORDER BY MAX(a.completed_at) ASC LIMIT 1", [&unseen_id], |r| r.get(0)).optional()?.or_else(|| conn.query_row("SELECT id FROM problems WHERE is_curriculum=1 AND difficulty='Easy' AND id<>? ORDER BY order_index LIMIT 1", [&unseen_id], |r|r.get(0)).optional().ok().flatten()).unwrap_or_else(||unseen_id.clone());
-    let warm_id: String = conn
-        .query_row(
-            "SELECT problem_id FROM daily_plan WHERE date=? AND kind='Warm-up'",
-            [&today],
-            |r| r.get(0),
-        )
-        .optional()?
-        .unwrap_or(automatic_warm);
-    let review_id: Option<String> = conn.query_row("SELECT problem_id FROM reviews WHERE next_review_date<=? ORDER BY next_review_date LIMIT 1", [&today], |r| r.get(0)).optional()?;
-    let mut items = vec![
-        PlanItem {
-            kind: "Warm-up".into(),
-            problem: query_problem(&conn, &warm_id)?,
-            estimated_minutes: 15,
-        },
-        PlanItem {
-            kind: "Main problem".into(),
-            problem: query_problem(&conn, &unseen_id)?,
-            estimated_minutes: 45,
-        },
-    ];
-    if let Some(id) = review_id {
-        items.push(PlanItem {
-            kind: "Review".into(),
-            problem: query_problem(&conn, &id)?,
-            estimated_minutes: 20,
-        });
+    // Explicit daily selections take priority, but completed solves never become
+    // due again. Include unfinished attempts, not just entirely unseen problems.
+    let choose = |kind: &str, exclude: Option<&str>| -> AppResult<Option<String>> {
+        Ok(conn.query_row(
+            "SELECT p.id FROM problems p
+             WHERE (p.is_curriculum=1 OR p.id IN (SELECT problem_id FROM daily_plan WHERE date=?1 AND kind=?2))
+               AND (?3 IS NULL OR p.id<>?3)
+               AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.problem_id=p.id AND a.completed_at IS NOT NULL AND a.outcome IN ('Easy','Solved'))
+             ORDER BY (p.id IN (SELECT problem_id FROM daily_plan WHERE date=?1 AND kind=?2)) DESC,
+               CASE WHEN ?2='Warm-up' AND p.difficulty='Easy' THEN 0 ELSE 1 END,p.order_index LIMIT 1",
+            params![today, kind, exclude], |r| r.get(0),
+        ).optional()?)
+    };
+    let main_id = choose("Main problem", None)?;
+    let warm_id = choose("Warm-up", main_id.as_deref())?;
+    let mut items = Vec::new();
+    for (kind, id, estimated_minutes) in [("Warm-up", warm_id, 15), ("Main problem", main_id, 45)] {
+        if let Some(id) = id {
+            items.push(PlanItem {
+                kind: kind.into(),
+                problem: query_problem(conn, &id)?,
+                estimated_minutes,
+            });
+        }
     }
-    let reviews_due = conn.query_row(
-        "SELECT COUNT(*) FROM reviews WHERE next_review_date<=?",
-        [&today],
-        |r| r.get(0),
-    )?;
     let xp: i32 = conn.query_row(
         "SELECT COALESCE(SUM(xp_earned),0) FROM daily_activity",
         [],
@@ -275,7 +178,6 @@ pub fn get_today_plan(db: State<Db>) -> AppResult<TodayPlan> {
     let level = plant_progress(xp).0;
     Ok(TodayPlan {
         items,
-        reviews_due,
         streak,
         xp,
         level,
@@ -299,8 +201,6 @@ pub fn get_dashboard(db: State<Db>) -> AppResult<Dashboard> {
         |r| r.get(0),
     )?;
     let practiced_count=conn.query_row("SELECT COUNT(DISTINCT a.problem_id) FROM attempts a JOIN problems p ON p.id=a.problem_id WHERE a.completed_at IS NOT NULL AND p.is_curriculum=1",[],|r|r.get(0))?;
-    let today_string = today.to_string();
-    let due_reviews = query_reviews(&conn, Some(&today_string), Some(3))?;
     let (_, level_number, level_floor_xp, next_level_xp) = plant_progress(plan.xp);
     Ok(Dashboard {
         plan,
@@ -310,75 +210,90 @@ pub fn get_dashboard(db: State<Db>) -> AppResult<Dashboard> {
         next_level_xp,
         practiced_count,
         problem_count,
-        due_reviews,
     })
 }
 
 #[tauri::command]
 pub fn get_garden_state(db: State<Db>) -> AppResult<GardenState> {
-    let plan = get_today_plan(db.clone())?;
-    let today_problem = plan
-        .items
-        .iter()
-        .find(|item| item.kind == "Main problem")
-        .or_else(|| plan.items.first())
-        .map(|item| item.problem.clone())
-        .ok_or_else(|| AppError::Message("Today's plan is empty".into()))?;
-    let conn = db.0.lock().unwrap();
-    let today = Local::now().date_naive();
-    let today_string = today.to_string();
-    let practiced: u32 = conn.query_row(
-        "SELECT COUNT(DISTINCT a.problem_id) FROM attempts a JOIN problems p ON p.id=a.problem_id WHERE a.completed_at IS NOT NULL AND p.is_curriculum=1",
-        [], |row| row.get(0)
-    )?;
-    let reviews_due: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM reviews WHERE next_review_date<=?",
-        [&today_string],
-        |row| row.get(0),
-    )?;
-    let overdue_cutoff = (today - Duration::days(3)).to_string();
-    let significantly_overdue: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM reviews WHERE next_review_date<=?",
-        [&overdue_cutoff],
-        |row| row.get(0),
-    )?;
-    let last_practice: Option<String> = conn.query_row(
-        "SELECT MAX(date) FROM daily_activity WHERE attempts_completed>0",
-        [],
-        |row| row.get(0),
-    )?;
-    let days_since_practice = last_practice
-        .and_then(|date| chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d").ok())
-        .map(|date| (today - date).num_days().max(0));
-    let monday = today - Duration::days(today.weekday().num_days_from_monday() as i64);
-    let mut week = Vec::with_capacity(7);
-    for offset in 0..7 {
-        let day = (monday + Duration::days(offset)).to_string();
-        week.push(conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM daily_activity WHERE date=? AND (goal_completed=1 OR attempts_completed>0))",
-            [day], |row| row.get(0)
-        )?);
-    }
-    let recent_takeaway: Option<String> = conn.query_row(
-        "SELECT NULLIF(trim(notes),'') FROM attempts WHERE completed_at IS NOT NULL AND trim(notes)<>'' ORDER BY completed_at DESC LIMIT 1",
-        [], |row| row.get(0)
-    ).optional()?.flatten();
-    Ok(GardenState {
-        unique_problems_practiced: practiced,
-        current_stage: garden_stage_for(practiced),
-        vitality: garden_vitality_for(days_since_practice, reviews_due, significantly_overdue),
-        reviews_due,
-        current_streak: plan.streak.max(0) as u32,
-        weekly_days_completed: week.iter().filter(|done| **done).count() as u8,
-        week,
-        today_problem,
-        recent_takeaway,
-    })
+    crate::garden::read_garden(&db.0.lock().unwrap())
 }
 
 #[cfg(test)]
 mod domain_tests {
     use super::*;
+
+    #[test]
+    fn finishing_practice_does_not_schedule_or_change_legacy_reviews() {
+        let mut conn = crate::db::test_connection();
+        conn.execute("INSERT INTO reviews(problem_id,next_review_date,review_level) VALUES('contains-duplicate','2000-01-01',3)", []).unwrap();
+        for problem in ["contains-duplicate", "valid-anagram"] {
+            let attempt = start_attempt_in_db(&mut conn, problem, false).unwrap();
+            finish_attempt_in_db(
+                &mut conn,
+                FinishAttemptInput {
+                    attempt_id: attempt.id,
+                    outcome: "Solved".into(),
+                    confidence: 4,
+                    notes: "Retained takeaway".into(),
+                    mistakes: vec![],
+                },
+            )
+            .unwrap();
+        }
+        let row: (i64, String, i32) = conn
+            .query_row(
+                "SELECT COUNT(*),next_review_date,review_level FROM reviews",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(row, (1, "2000-01-01".into(), 3));
+        assert_eq!(conn.query_row("SELECT COUNT(*) FROM attempts WHERE notes='Retained takeaway' AND completed_at IS NOT NULL", [], |r| r.get::<_, i64>(0)).unwrap(), 2);
+    }
+
+    #[test]
+    fn solved_status_survives_old_due_dates_and_later_unsuccessful_practice() {
+        let conn = crate::db::test_connection();
+        conn.execute_batch(
+            "INSERT INTO attempts(problem_id,started_at,completed_at,outcome) VALUES
+          ('contains-duplicate','2026-01-01','2026-01-01','Solved'),
+          ('contains-duplicate','2026-01-02','2026-01-02','Couldn''t solve'),
+          ('valid-anagram','2026-01-01','2026-01-01','Easy'),
+          ('two-sum','2026-01-01','2026-01-01','Struggled');
+          INSERT INTO reviews(problem_id,next_review_date,review_level) VALUES
+          ('contains-duplicate','2000-01-01',2),('two-sum','2000-01-01',1);",
+        )
+        .unwrap();
+        let rows = query_book_problems(&conn, "neetcode-150").unwrap();
+        let row = |id: &str| rows.iter().find(|r| r.problem.id == id).unwrap();
+        assert_eq!(row("contains-duplicate").status, "Solved");
+        assert_eq!(row("contains-duplicate").attempt_count, 2);
+        assert_eq!(
+            row("contains-duplicate").last_outcome.as_deref(),
+            Some("Couldn't solve")
+        );
+        assert_eq!(row("valid-anagram").status, "Solved");
+        assert_eq!(row("two-sum").status, "Attempted");
+        assert_eq!(row("group-anagrams").status, "Unseen");
+    }
+
+    #[test]
+    fn today_never_reschedules_solved_problems_even_when_pinned_or_all_done() {
+        let conn = crate::db::test_connection();
+        conn.execute_batch("INSERT INTO attempts(problem_id,started_at,completed_at,outcome) VALUES
+          ('contains-duplicate','2026-01-01','2026-01-01','Solved');
+          INSERT INTO reviews(problem_id,next_review_date,review_level) VALUES('contains-duplicate','2000-01-01',2);").unwrap();
+        conn.execute("INSERT INTO daily_plan(date,kind,problem_id) VALUES(?,'Main problem','contains-duplicate')", [Local::now().date_naive().to_string()]).unwrap();
+        let plan = query_today_plan(&conn).unwrap();
+        assert_eq!(plan.items.len(), 2);
+        assert!(plan
+            .items
+            .iter()
+            .all(|item| item.problem.id != "contains-duplicate" && item.kind != "Review"));
+        assert_ne!(plan.items[0].problem.id, plan.items[1].problem.id);
+        conn.execute("INSERT INTO attempts(problem_id,started_at,completed_at,outcome) SELECT id,'2026-01-01','2026-01-01','Solved' FROM problems", []).unwrap();
+        assert!(query_today_plan(&conn).unwrap().items.is_empty());
+    }
 
     #[test]
     fn review_completion_preserves_the_separate_focus_attempt() {
@@ -519,49 +434,6 @@ mod domain_tests {
     }
 
     #[test]
-    fn stage_boundaries_are_stable() {
-        assert_eq!(garden_stage_for(0), GardenStage::OpenField);
-        assert_eq!(garden_stage_for(10), GardenStage::OpenField);
-        assert_eq!(garden_stage_for(11), GardenStage::YoungGrove);
-        assert_eq!(garden_stage_for(30), GardenStage::YoungGrove);
-        assert_eq!(garden_stage_for(31), GardenStage::Meadow);
-        assert_eq!(garden_stage_for(61), GardenStage::Homestead);
-        assert_eq!(garden_stage_for(91), GardenStage::Valley);
-        assert_eq!(garden_stage_for(121), GardenStage::Countryside);
-        assert_eq!(garden_stage_for(150), GardenStage::Countryside);
-    }
-
-    #[test]
-    fn vitality_is_encouraging_and_deterministic() {
-        assert_eq!(garden_vitality_for(Some(0), 0, 0), GardenVitality::Thriving);
-        assert_eq!(garden_vitality_for(Some(3), 2, 0), GardenVitality::Calm);
-        assert_eq!(
-            garden_vitality_for(Some(1), 5, 0),
-            GardenVitality::NeedsCare
-        );
-        assert_eq!(
-            garden_vitality_for(Some(1), 3, 3),
-            GardenVitality::NeedsCare
-        );
-        assert_eq!(garden_vitality_for(None, 0, 0), GardenVitality::NeedsCare);
-    }
-
-    #[test]
-    fn review_schedule_advances_and_recedes_with_mastery() {
-        assert_eq!(review_schedule(0, "Solved", 4), (1, 3));
-        assert_eq!(review_schedule(1, "Easy", 5), (4, 30));
-        assert_eq!(review_schedule(4, "Struggled", 4), (3, 14));
-        assert_eq!(review_schedule(4, "Needed hint", 2), (1, 3));
-        assert_eq!(review_schedule(6, "Couldn't solve", 5), (0, 1));
-    }
-
-    #[test]
-    fn review_schedule_is_clamped_to_supported_intervals() {
-        assert_eq!(review_schedule(6, "Easy", 5), (6, 120));
-        assert_eq!(review_schedule(0, "Needed hint", 1), (0, 1));
-    }
-
-    #[test]
     fn leetcode_problem_imports_are_normalized() {
         assert_eq!(
             problem_slug("https://leetcode.com/problems/network-delay-time/?envType=study-plan")
@@ -628,7 +500,7 @@ fn start_attempt_in_db(
         if row.1 != problem_id {
             return Err(AppError::Message(
                 if is_review {
-                    "A review is already in progress. Resume or end it from Reviews first."
+                    "A previous review is still in progress. Resume or end it from Study first."
                 } else {
                     "A focus session is already in progress. Resume or end it from Today first."
                 }
@@ -725,11 +597,50 @@ pub fn save_attempt_notes(attempt_id: i64, notes: String, db: State<Db>) -> AppR
 
 #[tauri::command]
 pub fn abandon_attempt(attempt_id: i64, db: State<Db>) -> AppResult<()> {
-    db.0.lock().unwrap().execute(
-        "UPDATE attempts SET abandoned_at=?,paused_at=NULL WHERE id=? AND completed_at IS NULL AND abandoned_at IS NULL",
-        params![Utc::now().to_rfc3339(),attempt_id]
-    )?;
+    abandon_attempt_in_db(&mut db.0.lock().unwrap(), attempt_id, Utc::now())
+}
+
+/// Ending early still preserves earned focus time, without inventing a journal
+/// reflection or changing review scheduling. Older ended attempts with no
+/// duration are left alone: their discarded pause timestamps can't be recovered.
+pub(crate) fn abandon_attempt_in_db(
+    conn: &mut rusqlite::Connection,
+    id: i64,
+    now: chrono::DateTime<Utc>,
+) -> AppResult<()> {
+    let tx = conn.transaction()?;
+    let attempt: Option<(String, Option<String>, i64)> = tx
+        .query_row(
+            "SELECT started_at,paused_at,paused_seconds FROM attempts
+         WHERE id=? AND completed_at IS NULL AND abandoned_at IS NULL",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
+    if let Some((start, pause, paused_seconds)) = attempt {
+        let seconds = attempt_duration(&start, pause.as_deref(), paused_seconds, now)?;
+        tx.execute(
+            "UPDATE attempts SET abandoned_at=?,duration_seconds=?,paused_at=NULL WHERE id=?",
+            params![now.to_rfc3339(), seconds, id],
+        )?;
+    }
+    tx.commit()?;
     Ok(())
+}
+
+fn attempt_duration(
+    start: &str,
+    pause: Option<&str>,
+    paused_seconds: i64,
+    now: chrono::DateTime<Utc>,
+) -> AppResult<i64> {
+    let parse = |value: &str| {
+        chrono::DateTime::parse_from_rfc3339(value)
+            .map(|date| date.with_timezone(&Utc))
+            .map_err(|error| AppError::Message(error.to_string()))
+    };
+    let end = pause.map(parse).transpose()?.unwrap_or(now).min(now);
+    Ok(((end - parse(start)?).num_seconds() - paused_seconds.max(0)).max(0))
 }
 
 #[tauri::command]
@@ -756,19 +667,7 @@ fn finish_attempt_in_db(
             "This focus session was already completed or ended".into(),
         ));
     };
-    let start = chrono::DateTime::parse_from_rfc3339(&started_at)
-        .map_err(|e| AppError::Message(e.to_string()))?;
-    let current_pause_seconds = paused_at
-        .map(|value| {
-            chrono::DateTime::parse_from_rfc3339(&value)
-                .map(|paused| (now - paused.with_timezone(&Utc)).num_seconds())
-                .map_err(|error| AppError::Message(error.to_string()))
-        })
-        .transpose()?
-        .unwrap_or(0);
-    let duration =
-        ((now - start.with_timezone(&Utc)).num_seconds() - paused_seconds - current_pause_seconds)
-            .max(0);
+    let duration = attempt_duration(&started_at, paused_at.as_deref(), paused_seconds, now)?;
     let updated = tx.execute(
         "UPDATE attempts SET completed_at=?,duration_seconds=?,outcome=?,confidence=?,notes=?,paused_at=NULL WHERE id=? AND completed_at IS NULL AND abandoned_at IS NULL",
         params![now.to_rfc3339(),duration,&input.outcome,input.confidence,&input.notes,input.attempt_id],
@@ -784,18 +683,8 @@ fn finish_attempt_in_db(
             params![input.attempt_id, mistake],
         )?;
     }
-    let current_review_level: i32 = tx
-        .query_row(
-            "SELECT review_level FROM reviews WHERE problem_id=?",
-            [&problem_id],
-            |row| row.get(0),
-        )
-        .optional()?
-        .unwrap_or(0);
-    let (next_review_level, days) =
-        review_schedule(current_review_level, &input.outcome, input.confidence);
-    let next = (Local::now().date_naive() + Duration::days(days)).to_string();
-    tx.execute("INSERT INTO reviews(problem_id,next_review_date,review_level,last_reviewed_at) VALUES(?,?,?,?) ON CONFLICT(problem_id) DO UPDATE SET next_review_date=excluded.next_review_date,review_level=excluded.review_level,last_reviewed_at=excluded.last_reviewed_at",params![problem_id,next,next_review_level,now.to_rfc3339()])?;
+    // Scheduling is retired. Keep existing review rows for history/backups, but
+    // finishing a session must not create or advance a due date.
     let xp =
         20 + if input.outcome == "Easy" || input.outcome == "Solved" {
             10
@@ -896,12 +785,6 @@ fn update_reflection(conn: &mut rusqlite::Connection, input: &FinishAttemptInput
 #[tauri::command]
 pub fn update_journal_entry(input: FinishAttemptInput, db: State<Db>) -> AppResult<()> {
     update_reflection(&mut db.0.lock().unwrap(), &input)
-}
-
-#[tauri::command]
-pub fn get_review_queue(db: State<Db>) -> AppResult<Vec<ReviewItem>> {
-    let conn = db.0.lock().unwrap();
-    query_reviews(&conn, None, None)
 }
 
 #[tauri::command]
@@ -1282,23 +1165,28 @@ pub fn delete_problem_book(book_id: String, db: State<Db>) -> AppResult<()> {
 #[tauri::command]
 pub fn get_book_problems(book_id: String, db: State<Db>) -> AppResult<Vec<ProblemOverview>> {
     let conn = db.0.lock().unwrap();
-    let today = Local::now().date_naive().to_string();
+    query_book_problems(&conn, &book_id)
+}
+
+fn query_book_problems(
+    conn: &rusqlite::Connection,
+    book_id: &str,
+) -> AppResult<Vec<ProblemOverview>> {
     let mut stmt=conn.prepare("SELECT p.id,p.title,p.category,p.difficulty,p.leetcode_url,p.neetcode_url,i.order_index,p.category_order,
       COUNT(a.id),(SELECT outcome FROM attempts la WHERE la.problem_id=p.id AND la.completed_at IS NOT NULL ORDER BY la.completed_at DESC LIMIT 1),
-      (SELECT completed_at FROM attempts la WHERE la.problem_id=p.id AND la.completed_at IS NOT NULL ORDER BY la.completed_at DESC LIMIT 1),r.next_review_date
-      FROM problem_book_items i JOIN problems p ON p.id=i.problem_id LEFT JOIN attempts a ON a.problem_id=p.id AND a.completed_at IS NOT NULL LEFT JOIN reviews r ON r.problem_id=p.id
+      (SELECT completed_at FROM attempts la WHERE la.problem_id=p.id AND la.completed_at IS NOT NULL ORDER BY la.completed_at DESC LIMIT 1),
+      MAX(CASE WHEN a.outcome IN ('Easy','Solved') THEN 1 ELSE 0 END)
+      FROM problem_book_items i JOIN problems p ON p.id=i.problem_id LEFT JOIN attempts a ON a.problem_id=p.id AND a.completed_at IS NOT NULL
       WHERE i.book_id=? GROUP BY p.id ORDER BY i.order_index")?;
     let problems = stmt
         .query_map([book_id], |r| {
             let count: i32 = r.get(8)?;
             let last: Option<String> = r.get(9)?;
-            let review: Option<String> = r.get(11)?;
-            let status = if review.as_ref().is_some_and(|d| d <= &today) {
-                "Review Due"
+            let solved: bool = r.get(11)?;
+            let status = if solved {
+                "Solved"
             } else if count == 0 {
                 "Unseen"
-            } else if last.as_ref().is_some_and(|o| o == "Easy" || o == "Solved") {
-                "Solved"
             } else {
                 "Attempted"
             }
@@ -1318,7 +1206,6 @@ pub fn get_book_problems(book_id: String, db: State<Db>) -> AppResult<Vec<Proble
                 attempt_count: count,
                 last_outcome: last,
                 last_attempted_at: r.get(10)?,
-                next_review_date: review,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

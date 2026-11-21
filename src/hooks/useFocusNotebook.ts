@@ -5,7 +5,7 @@ import type { FocusContext } from '../domain'
 import { errorMessage } from '../utils/errors'
 import { buildContextualPrompt, parseQwenCommand } from '../utils/qwen'
 
-export function useFocusNotebook(context: FocusContext | null, webviewLabel: string, obscured: boolean) {
+export function useFocusNotebook(context: FocusContext | null, webviewLabel: string, obscured: boolean, offlineCode: string | null = null) {
   const [notes, setNotes] = useState(context?.attempt.notes ?? '')
   const [qwenRunning, setQwenRunning] = useState(false)
   const [qwenStatus, setQwenStatus] = useState('Preparing Qwen…')
@@ -83,8 +83,8 @@ export function useFocusNotebook(context: FocusContext | null, webviewLabel: str
     try {
       let prompt = command.question
       if (command.includeContext) {
-        if (!webviewLabel) throw new Error('The LeetCode editor is still loading. Try @big-qwen again in a moment.')
-        const code = await api.leetcodeEditorCode(webviewLabel)
+        if (offlineCode === null && !webviewLabel) throw new Error('The editor is still loading. Try @big-qwen again in a moment.')
+        const code = offlineCode ?? await api.leetcodeEditorCode(webviewLabel)
         if (!current() || stoppedRef.current) return
         if (!code.trim()) throw new Error('LeetJournal could not read the current editor code. Click inside the LeetCode editor, then try @big-qwen again.')
         prompt = buildContextualPrompt(command, attempt.problem, code)

@@ -1,28 +1,28 @@
 import { useEffect, useState } from 'react'
-import { ChevronRight, Flame, Play } from 'lucide-react'
+import { ChevronRight, Flame, Play, Sparkles } from 'lucide-react'
 import type { AppSettings, Dashboard, FocusContext, Problem } from '../domain'
-import { Plant } from '../components/Plant'
+import type { StudyState } from '../study/types'
 import { Card, Chip } from '../components/ui'
 
 interface TodayPageProps {
   data: Dashboard
   settings: AppSettings
+  study: StudyState
+  onStudy: () => void
   active: FocusContext | null
-  onStart: (problem: Problem, isReview: boolean) => void
+  onStart: (problem: Problem) => void
   onResume: () => void
-  onReviews: () => void
 }
 
 const planKey = (kind: string, problemId: string) => `${kind}:${problemId}`
 
-export function TodayPage({ data, settings, active, onStart, onResume, onReviews }: TodayPageProps) {
+export function TodayPage({ data, settings, study, active, onStart, onResume, onStudy }: TodayPageProps) {
   const { plan } = data
   const main = plan.items.find((item) => item.kind === 'Main problem') ?? plan.items[0]
   const [selectedKey, setSelectedKey] = useState(main ? planKey(main.kind, main.problem.id) : '')
   const selected = plan.items.find((item) => planKey(item.kind, item.problem.id) === selectedKey) ?? main
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-  const progress = (plan.xp - data.levelFloorXp) / Math.max(1, data.nextLevelXp - data.levelFloorXp) * 100
 
   useEffect(() => {
     if (selectedKey && !plan.items.some((item) => planKey(item.kind, item.problem.id) === selectedKey)) {
@@ -49,7 +49,8 @@ export function TodayPage({ data, settings, active, onStart, onResume, onReviews
       </header>
       <div className="today-grid">
         <Card className="plan-card">
-          <div className="card-title"><h3>Today’s Plan</h3><small>Select a problem</small></div>
+          <div className="card-title"><h3>Today’s Plan</h3>{plan.items.length > 0 && <small>Select a problem</small>}</div>
+          {!plan.items.length && <p className="muted-copy">You’ve solved your curriculum. Explore another book in Library, or revisit a problem whenever you want.</p>}
           <div className="timeline">
             {plan.items.map((item, index) => {
               const itemKey = planKey(item.kind, item.problem.id)
@@ -60,7 +61,7 @@ export function TodayPage({ data, settings, active, onStart, onResume, onReviews
                   className={`plan-row ${isSelected ? 'selected' : ''}`}
                   aria-pressed={isSelected}
                   onClick={() => setSelectedKey(itemKey)}
-                  onDoubleClick={() => onStart(item.problem, item.kind === 'Review')}
+                  onDoubleClick={() => onStart(item.problem)}
                   key={itemKey}
                 >
                   <span className="dot" />
@@ -76,24 +77,14 @@ export function TodayPage({ data, settings, active, onStart, onResume, onReviews
             })}
           </div>
         </Card>
-        <Card className="garden">
+        <Card className="study-today-card">
           <div>
-            <h3>Your Garden</h3>
-            <p>Level {data.levelNumber} · {plan.level}</p>
-            <div className="xp"><span style={{ width: `${Math.max(0, Math.min(progress, 100))}%` }} /></div>
-            <small>{plan.xp} / {data.nextLevelXp} XP</small>
-            <em>{data.practicedCount} of {data.problemCount} curriculum problems practiced</em>
+            <h3>Your Study</h3>
+            <p>Level {study.level} · {study.crystals} lapis</p>
+            <p>{study.shelves} bookshelves · {study.items.length} equipment pieces</p>
+            <button onClick={onStudy}>Visit your study →</button>
           </div>
-          <Plant large animate={settings.plantAnimations} />
-        </Card>
-        <Card className="review-card">
-          <div className="card-title"><h3>Review Due ({plan.reviewsDue})</h3><button onClick={onReviews}>See all</button></div>
-          {data.dueReviews.length ? data.dueReviews.map((review) => (
-            <div className="mini-problem" key={review.problem.id}>
-              <span>{review.problem.title}</span>
-              <Chip tone={review.problem.difficulty.toLowerCase()}>{review.problem.difficulty}</Chip>
-            </div>
-          )) : <p className="muted-copy">Nothing due today. Your next reviews will appear here.</p>}
+          <Sparkles size={48} strokeWidth={1} />
         </Card>
         <div className={`start-row ${active ? 'active-session' : ''}`}>
           {active ? (
@@ -109,7 +100,7 @@ export function TodayPage({ data, settings, active, onStart, onResume, onReviews
             <button
               className="primary"
               disabled={!selected}
-              onClick={() => selected && onStart(selected.problem, selected.kind === 'Review')}
+              onClick={() => selected && onStart(selected.problem)}
             >
               <Play size={18} fill="currentColor" /> Start focus session
             </button>

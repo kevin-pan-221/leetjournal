@@ -25,7 +25,6 @@ pub struct PlanItem {
 #[serde(rename_all = "camelCase")]
 pub struct TodayPlan {
     pub items: Vec<PlanItem>,
-    pub reviews_due: i32,
     pub streak: i32,
     pub xp: i32,
     pub level: String,
@@ -41,40 +40,21 @@ pub struct Dashboard {
     pub next_level_xp: i32,
     pub practiced_count: i32,
     pub problem_count: i32,
-    pub due_reviews: Vec<ReviewItem>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub enum GardenStage {
-    OpenField,
-    YoungGrove,
-    Meadow,
-    Homestead,
-    Valley,
-    Countryside,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum GardenVitality {
-    Thriving,
-    Calm,
-    NeedsCare,
+pub struct GardenPlant {
+    pub id: usize,
+    pub grown_at: String,
+    pub problems: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GardenState {
-    pub unique_problems_practiced: u32,
-    pub current_stage: GardenStage,
-    pub vitality: GardenVitality,
-    pub reviews_due: u32,
-    pub current_streak: u32,
-    pub weekly_days_completed: u8,
-    pub week: Vec<bool>,
-    pub today_problem: Problem,
-    pub recent_takeaway: Option<String>,
+    pub focused_seconds: i64,
+    pub plants: Vec<GardenPlant>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -111,15 +91,6 @@ pub struct FinishAttemptInput {
     pub confidence: i32,
     pub notes: String,
     pub mistakes: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReviewItem {
-    pub problem: Problem,
-    pub next_review_date: String,
-    pub review_level: i32,
-    pub last_outcome: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,7 +140,6 @@ pub struct ProblemOverview {
     pub attempt_count: i32,
     pub last_outcome: Option<String>,
     pub last_attempted_at: Option<String>,
-    pub next_review_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

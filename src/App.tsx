@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { LoaderCircle } from 'lucide-react'
@@ -6,7 +6,6 @@ import { api } from './api'
 import { errorMessage } from './utils/errors'
 import type { FinishAttemptInput, Problem } from './domain'
 import { isFocusPage, type Page } from './app/page'
-import { GardenFocus, GardenPage } from './Garden'
 import { closeLeetCodeWorkspace, hideLeetCodeWorkspace, LeetCodeWorkspace } from './LeetCodeWorkspace'
 import { ConfirmLeave } from './components/ConfirmLeave'
 import { ReflectionDialog } from './components/ReflectionDialog'
@@ -15,12 +14,12 @@ import { useAppData } from './hooks/useAppData'
 import { FocusPage } from './pages/FocusPage'
 import { JournalPage } from './pages/JournalPage'
 import { LibraryPage } from './pages/LibraryPage'
-import { ReviewsPage } from './pages/ReviewsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TodayPage } from './pages/TodayPage'
+const StudyPage = lazy(() => import('./study/StudyPage'))
 
 export default function App() {
-  const { dashboard, garden, focus: practiceFocus, reviewFocus, setReviewFocus, entries, reviews, books, settings, loading, error,
+  const { dashboard, study, setStudy, focus: practiceFocus, reviewFocus, setReviewFocus, entries, books, settings, loading, error,
     reload, setFocus: setPracticeFocus, setSettings, setEntries } = useAppData()
   const [page, setPage] = useState<Page>('today')
   const [logging, setLogging] = useState(false)
@@ -32,7 +31,9 @@ export default function App() {
   const setFocus = isReviewMode ? setReviewFocus : setPracticeFocus
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [focusReturn, setFocusReturn] = useState<Page>('today')
-  const [gardenMounted, setGardenMounted] = useState(false)
+  // Keep pre-existing review sessions resumable from Study without scheduling
+  // or exposing a new review queue. Historical notes and timers remain intact.
+  const studyActive = reviewFocus && !reviewFocus.attempt.pausedAt ? reviewFocus : practiceFocus ?? reviewFocus
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('leetjournal.sidebar.collapsed') === 'true',
   )
@@ -100,10 +101,9 @@ export default function App() {
     } catch (actionError) { reportActionError(actionError) }
   }
 
-  const start = async (problem: Problem, isReview = false, fromGarden = false) => {
-    const returnPage: Page = isReview ? 'reviews' : fromGarden ? 'garden'
-      : page === 'reviews' ? 'reviews'
-        : page === 'problems' ? 'problems'
+  const start = async (problem: Problem, isReview = false, fromStudy = false) => {
+    const returnPage: Page = fromStudy ? 'study'
+        : page === 'problems' || isReview ? 'problems'
           : page === 'journal' ? 'journal' : 'today'
     try {
       await api.start(problem.id, isReview)
@@ -111,7 +111,7 @@ export default function App() {
       setPracticeFocus(nextPractice)
       setReviewFocus(nextReview)
       setFocusReturn(returnPage)
-      setPage(isReview ? 'review-focus' : fromGarden ? 'garden-focus' : 'focus')
+      setPage(isReview ? 'review-focus' : 'focus')
     } catch (actionError) { reportActionError(actionError) }
   }
 
@@ -137,8 +137,7 @@ export default function App() {
     setLogging(false)
     setReflectionNotes('')
     // Return to the next problem, preserving the Library's saved book/filters.
-    // Reviews return to their own queue without disturbing the focus session.
-    setPage(isReviewMode ? 'reviews' : 'problems')
+    setPage('problems')
     void releaseQwen()
     void closeLeetCodeWorkspace().catch(reportActionError)
     void reload()
@@ -154,16 +153,14 @@ export default function App() {
 
   const renderContent = () => {
     if (loading) return <div className="loading"><LoaderCircle /><p>Opening your journal…</p></div>
-    if (error || !dashboard || !garden || !settings) {
+    if (error || !dashboard || !study || !settings) {
       return <div className="error-state"><h2>LeetJournal couldn’t open</h2><p>{error}</p><button className="primary" onClick={reload}>Try again</button></div>
     }
-    if (page === 'today') return <TodayPage data={dashboard} settings={settings} active={focus} onStart={(problem, isReview) => start(problem, isReview)} onResume={() => { if (practiceFocus) void start(practiceFocus.attempt.problem) }} onReviews={() => setPage('reviews')} />
-    if (page === 'garden') return null
-    if (page === 'garden-focus') return <GardenFocus context={focus} garden={garden} animate={settings.plantAnimations} onPause={pause} onWorkspace={() => setPage('focus')} onFinish={() => void beginReflection()} />
-    if (page === 'focus' || page === 'review-focus') return <FocusPage key={focus?.attempt.id} context={focus} settings={settings} obscured={logging || confirmLeave || Boolean(actionError)} onPause={pause} onFinish={(notes) => void beginReflection(notes)} onBack={() => setPage(isReviewMode ? 'reviews' : 'today')} />
+    if (page === 'today') return <TodayPage data={dashboard} settings={settings} study={study} active={focus} onStudy={() => setPage('study')} onStart={(problem) => start(problem)} onResume={() => { if (practiceFocus) void start(practiceFocus.attempt.problem) }} />
+    if (page === 'study') return <Suspense fallback={<div className="loading"><LoaderCircle /><p>Opening your study…</p></div>}><StudyPage state={study} onChange={setStudy} active={studyActive} animate={settings.plantAnimations} onStart={() => setPage('problems')} onReturn={() => { if (studyActive) void start(studyActive.attempt.problem, studyActive.attempt.isReview, true) }} /></Suspense>
+    if (page === 'focus' || page === 'review-focus') return <FocusPage key={focus?.attempt.id} context={focus} settings={settings} obscured={logging || confirmLeave || Boolean(actionError)} onPause={pause} onFinish={(notes) => void beginReflection(notes)} onBack={() => setPage('problems')} />
     if (page === 'problems') return <LibraryPage books={books} entries={entries} onStart={(problem) => start(problem)} onReload={async () => { await reload() }} onSetToday={async (kind, problem) => { await api.setTodayItem(kind, problem.id); await reload() }} />
     if (page === 'journal') return <JournalPage entries={entries} onEdit={editReflection} onStart={(problem) => start(problem)} />
-    if (page === 'reviews') return <ReviewsPage reviews={reviews} active={reviewFocus} onStart={(problem) => start(problem, true)} />
     return <SettingsPage settings={settings} onSave={async (nextSettings) => { setSettings(await api.saveSettings(nextSettings)); await reload() }} />
   }
   const content = renderContent()
@@ -174,22 +171,16 @@ export default function App() {
     return next
   })
   const navigate = async (next: Page) => {
-    if (next === 'garden') setGardenMounted(true)
     if (next === 'settings') await closeLeetCodeWorkspace()
     else if (next !== 'focus') await hideLeetCodeWorkspace()
     setPage(next)
   }
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${focusMode ? 'focus-mode' : ''} ${page === 'garden' ? 'garden-shell' : ''} theme-${settings?.theme ?? 'warm-garden'}`}>
+    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${focusMode ? 'focus-mode' : ''} theme-${settings?.theme ?? 'warm-garden'}`}>
       <Sidebar page={page} name={settings?.displayName ?? 'Coder'} onNavigate={(next) => void navigate(next).catch(reportActionError)} collapsed={sidebarCollapsed} onToggle={toggleSidebar} hidden={focusMode} />
       <main>
-        {gardenMounted && garden && settings && (
-          <div className={`garden-route ${page === "garden" ? "active" : ""}`} aria-hidden={page !== "garden"}>
-            <GardenPage state={garden} active={practiceFocus} animate={settings.plantAnimations && page === "garden"} onStart={(problem) => start(problem, false, true)} onReturn={() => { if (practiceFocus) void start(practiceFocus.attempt.problem, false, true) }} onReviews={() => setPage("reviews")} />
-          </div>
-        )}
-        {page !== "garden" && content}
+        {content}
       </main>
       {focus && page === 'today' && <div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden /></div>}
       {confirmLeave && focus && <ConfirmLeave isReview={isReviewMode} problem={focus.attempt.problem.title} onStay={() => setConfirmLeave(false)} onPauseExit={pauseAndExit} onEnd={endSession} />}

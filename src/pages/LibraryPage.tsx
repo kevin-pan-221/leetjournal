@@ -6,6 +6,9 @@ import { readBookView, saveBookView, readOpenBook, saveOpenBook } from '../utils
 import type { JournalEntry, Problem, ProblemBook, ProblemOverview } from '../domain'
 import { BookEditor } from '../components/BookEditor'
 import { Card, Chip, PageHeader } from '../components/ui'
+import { SaveOfflineButton } from '../offline/SaveOfflineButton'
+import { SaveBookOffline } from '../offline/SaveBookOffline'
+import '../offline/offline.css'
 
 interface LibraryPageProps {
   books: ProblemBook[]
@@ -35,11 +38,14 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
   useEffect(() => saveBookView(book.id, { ...view, category }), [book.id, view, category])
   const [selected, setSelected] = useState<ProblemOverview | null>(null)
   const [visibleCount, setVisibleCount] = useState(100)
+  const [offlineIds, setOfflineIds] = useState<string[]>([])
+  const onOfflineSaved = useCallback((ids: string[]) => setOfflineIds(current => [...new Set([...current, ...ids])]), [])
+  useEffect(() => { let alive = true; void api.offlineProblems().then(ids => { if (alive) onOfflineSaved(ids) }).catch(() => {}); return () => { alive = false } }, [onOfflineSaved])
   const categories = [...new Set(items.map((item) => item.problem.category))]
   const visible = items.filter((item) =>
     (category === 'All' || item.problem.category === category)
     && (difficulty === 'All' || item.problem.difficulty === difficulty)
-    && (status === 'All' || item.status === status)
+    && (status === 'All' || (status === 'Saved offline' ? offlineIds.includes(item.problem.id) : item.status === status))
     && item.problem.title.toLowerCase().includes(query.toLowerCase()))
   const rendered = visible.slice(0, visibleCount)
   const history = selected ? entries.filter((entry) => entry.problem.id === selected.problem.id) : []
@@ -52,14 +58,14 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
       <div className="curriculum-stats">
         <b>{items.filter((item) => item.attemptCount > 0).length}</b><span>practiced</span>
         <b>{items.filter((item) => item.status === 'Solved').length}</b><span>solved</span>
-        <b>{items.filter((item) => item.status === 'Review Due').length}</b><span>due</span>
         <b>{items.length}</b><span>total</span>
       </div>
+      <SaveBookOffline bookId={book.id} problemIds={items.map(item => item.problem.id)} savedIds={offlineIds} onSaved={onOfflineSaved} />
       <div className="problem-filters">
         <label><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${items.length} problems…`} /></label>
         <select value={category} onChange={(event) => setCategory(event.target.value)}><option>All</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
         <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option>All</option><option>Easy</option><option>Medium</option><option>Hard</option></select>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}><option>All</option><option>Unseen</option><option>Attempted</option><option>Solved</option><option>Review Due</option></select>
+        <select value={status} onChange={(event) => setStatus(event.target.value)}><option>All</option><option>Unseen</option><option>Attempted</option><option>Solved</option><option>Saved offline</option></select>
       </div>
       <div className="curriculum-layout">
         <aside className="topic-list">
@@ -68,12 +74,12 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
         </aside>
         <Card className="problem-table">
           <div className="problem-table-head"><span>Problem</span><span>Difficulty</span><span>Status</span><span /></div>
-          {rendered.map((item) => <button className="problem-row" key={item.problem.id} onClick={() => setSelected(item)}><span><i>{item.problem.orderIndex}</i><span><b>{item.problem.title}</b><small>{item.problem.category}</small></span></span><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip><span className={`status status-${item.status.toLowerCase().replace(' ', '-')}`}>{item.status}</span><ChevronRight size={16} /></button>)}
+          {rendered.map((item) => <button className="problem-row" key={item.problem.id} onClick={() => setSelected(item)}><span><i>{item.problem.orderIndex}</i><span><b>{item.problem.title}</b><small>{item.problem.category}{offlineIds.includes(item.problem.id) && ' · Saved offline'}</small></span></span><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip><span className={`status status-${item.status.toLowerCase().replace(' ', '-')}`}>{item.status}</span><ChevronRight size={16} /></button>)}
           {!visible.length && <div className="no-results">No problems match these filters.</div>}
           {rendered.length < visible.length && <button className="problem-load-more" onClick={() => setVisibleCount((count) => count + 100)}>Show 100 more <span>{visible.length - rendered.length} remaining</span></button>}
         </Card>
       </div>
-      {selected && <div className="modal-backdrop"><div className="problem-modal"><button className="modal-close" onClick={() => setSelected(null)}><X /></button><span className="eyebrow">#{selected.problem.orderIndex} · {selected.problem.category}</span><h2>{selected.problem.title}</h2><div className="problem-meta"><Chip tone={selected.problem.difficulty.toLowerCase()}>{selected.problem.difficulty}</Chip><span className={`status status-${selected.status.toLowerCase().replace(' ', '-')}`}>{selected.status}</span><span>{selected.attemptCount} {selected.attemptCount === 1 ? 'attempt' : 'attempts'}</span></div><div className="problem-actions"><button className="primary" onClick={() => onStart(selected.problem)}><Play size={16} />Start focus</button><button onClick={() => onSetToday('Warm-up', selected.problem)}>Use as warm-up</button><button onClick={() => onSetToday('Main problem', selected.problem)}>Use as main</button><a href={selected.problem.leetcodeUrl} target="_blank" rel="noreferrer">Open LeetCode</a></div><h3>Attempt history</h3>{history.length ? history.map((entry) => <div className="history-row" key={entry.id}><span><b>{entry.outcome}</b><small>{new Date(entry.completedAt).toLocaleDateString()}</small></span><span>{Math.max(1, Math.round(entry.durationSeconds / 60))} min</span><span>Confidence {entry.confidence}/5</span></div>) : <p className="muted-copy">No attempts yet. Start this problem when you’re ready.</p>}</div></div>}
+      {selected && <div className="modal-backdrop"><div className="problem-modal"><button className="modal-close" onClick={() => setSelected(null)}><X /></button><span className="eyebrow">#{selected.problem.orderIndex} · {selected.problem.category}</span><h2>{selected.problem.title}</h2><div className="problem-meta"><Chip tone={selected.problem.difficulty.toLowerCase()}>{selected.problem.difficulty}</Chip><span className={`status status-${selected.status.toLowerCase().replace(' ', '-')}`}>{selected.status}</span><span>{selected.attemptCount} {selected.attemptCount === 1 ? 'attempt' : 'attempts'}</span></div><div className="problem-actions"><button className="primary" onClick={() => onStart(selected.problem)}><Play size={16} />Start focus</button><button onClick={() => onSetToday('Warm-up', selected.problem)}>Use as warm-up</button><button onClick={() => onSetToday('Main problem', selected.problem)}>Use as main</button><a href={selected.problem.leetcodeUrl} target="_blank" rel="noreferrer">Open LeetCode</a></div><SaveOfflineButton key={selected.problem.id} problemId={selected.problem.id} leetcodeUrl={selected.problem.leetcodeUrl} onSaved={() => setOfflineIds(ids => [...new Set([...ids, selected.problem.id])])} /><h3>Attempt history</h3>{history.length ? history.map((entry) => <div className="history-row" key={entry.id}><span><b>{entry.outcome}</b><small>{new Date(entry.completedAt).toLocaleDateString()}</small></span><span>{Math.max(1, Math.round(entry.durationSeconds / 60))} min</span><span>Confidence {entry.confidence}/5</span></div>) : <p className="muted-copy">No attempts yet. Start this problem when you’re ready.</p>}</div></div>}
     </div>
   )
 }
