@@ -1,0 +1,31 @@
+Offline Python runtime
+======================
+Pyodide 314.0.7: https://github.com/pyodide/pyodide/tree/314.0.7
+Copyright Pyodide contributors. Licensed under the Mozilla Public License 2.0.
+Source and license: https://github.com/pyodide/pyodide/blob/314.0.7/LICENSE
+The distributed core runtime is copied unmodified from the pyodide npm package.
+Python and bundled libraries retain their upstream licenses; see the Python
+distribution's LICENSE and https://docs.python.org/3/license.html.
+
+Code editor
+===========
+CodeMirror 6 and its language packages: https://codemirror.net/
+Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

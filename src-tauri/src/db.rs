@@ -34,6 +34,7 @@ pub fn initialize(app: &AppHandle) -> AppResult<Db> {
     let conn = Connection::open(dir.join("leetjournal.sqlite3"))?;
     conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;")?;
     migrate(&conn)?;
+    crate::offline::initialize(&conn)?;
     seed(&conn)?;
     Ok(Db(Mutex::new(conn)))
 }
@@ -118,6 +119,7 @@ fn migrate(conn: &Connection) -> AppResult<()> {
         conn.execute("ALTER TABLE attempts ADD COLUMN abandoned_at TEXT", [])?;
     }
     migrate_session_slots(conn)?;
+    crate::study::migrate(conn)?;
     let defaults = [
         ("display_name", "Coder"),
         ("daily_focus_minutes", "30"),

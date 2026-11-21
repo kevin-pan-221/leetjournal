@@ -2,9 +2,15 @@ mod browser_surface;
 mod commands;
 mod db;
 mod error;
+mod garden;
 mod models;
+mod offline;
+mod offline_batch;
+mod offline_images;
+pub use offline_batch::prepare_existing_book;
 mod qwen;
 mod spotify;
+mod study;
 mod workspace;
 
 use std::sync::{
@@ -78,6 +84,7 @@ pub fn run() {
         .setup(|app| {
             let db = db::initialize(app.handle())?;
             app.manage(db);
+            app.manage(offline_batch::OfflineBatch::default());
             app.manage(qwen::QwenRuntime::default());
             app.manage(spotify::SpotifyRuntime::default());
             #[cfg(target_os = "macos")]
@@ -91,6 +98,18 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            offline::get_offline_problem,
+            offline::list_offline_problems,
+            offline::download_offline_problem,
+            offline::save_offline_draft,
+            offline::record_offline_submission,
+            offline::list_offline_submissions,
+            offline_batch::save_offline_book,
+            offline_batch::pause_offline_book,
+            offline_batch::offline_book_status,
+            study::get_study,
+            study::enchant_study_item,
+            study::equip_study_item,
             spotify::spotify_status,
             spotify::spotify_connect,
             spotify::spotify_disconnect,
@@ -104,7 +123,6 @@ pub fn run() {
             commands::finish_attempt,
             commands::get_journal,
             commands::update_journal_entry,
-            commands::get_review_queue,
             commands::get_dashboard,
             commands::get_garden_state,
             commands::get_settings,
@@ -125,6 +143,7 @@ pub fn run() {
             qwen::stop_qwen,
             qwen::unload_qwen,
             workspace::get_leetcode_editor_code,
+            workspace::leetcode_reachable,
             workspace::set_focus_shortcut_enabled,
             browser_surface::sync_browser_surface,
             browser_surface::dispose_browser_surface

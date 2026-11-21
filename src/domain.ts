@@ -15,7 +15,6 @@ export interface PlanItem {
 
 export interface TodayPlan {
   items: PlanItem[]
-  reviewsDue: number
   streak: number
   xp: number
   level: string
@@ -29,29 +28,17 @@ export interface Dashboard {
   nextLevelXp: number
   practicedCount: number
   problemCount: number
-  dueReviews: Review[]
 }
 
-export type GardenStage =
-  | 'openField'
-  | 'youngGrove'
-  | 'meadow'
-  | 'homestead'
-  | 'valley'
-  | 'countryside'
-
-export type GardenVitality = 'thriving' | 'calm' | 'needsCare'
+export interface GardenPlant {
+  id: number
+  grownAt: string
+  problems: string[]
+}
 
 export interface GardenState {
-  uniqueProblemsPracticed: number
-  currentStage: GardenStage
-  vitality: GardenVitality
-  reviewsDue: number
-  currentStreak: number
-  weeklyDaysCompleted: number
-  week: boolean[]
-  todayProblem: Problem
-  recentTakeaway: string | null
+  focusedSeconds: number
+  plants: GardenPlant[]
 }
 
 export interface Attempt {
@@ -82,13 +69,6 @@ export interface JournalEntry {
   isReview: boolean
 }
 
-export interface Review {
-  problem: Problem
-  nextReviewDate: string
-  reviewLevel: number
-  lastOutcome: string
-}
-
 export interface AppSettings {
   localModel: string
   displayName: string
@@ -107,7 +87,6 @@ export interface ProblemOverview {
   attemptCount: number
   lastOutcome: string | null
   lastAttemptedAt: string | null
-  nextReviewDate: string | null
 }
 
 export interface ProblemBook {

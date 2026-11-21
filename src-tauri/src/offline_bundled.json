@@ -1,0 +1,86 @@
+{
+ "alien-dictionary": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n    def alienOrder(self, words: List[str]) -> str:\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>An alien language uses lowercase English letters in an unknown order. You are given <code>words</code>, a list that is claimed to be sorted <strong>lexicographically</strong> by that language's rules.</p><p>Return a string containing every distinct letter that appears in <code>words</code>, ordered consistently with the alien alphabet. If no valid order exists (the list contradicts itself, or a word comes before its own prefix), return <code>\"\"</code>. If several orders are valid, return any of them.</p>\n<p><strong>Example 1:</strong></p><pre>Input: words = [\"wrt\",\"wrf\",\"er\",\"ett\",\"rftt\"]\nOutput: \"wertf\"</pre>\n<p><strong>Example 2:</strong></p><pre>Input: words = [\"z\",\"x\"]\nOutput: \"zx\"</pre>\n<p><strong>Example 3:</strong></p><pre>Input: words = [\"z\",\"x\",\"z\"]\nOutput: \"\"\nExplanation: \"z\" cannot come both before and after \"x\".</pre>\n<p><strong>Example 4:</strong></p><pre>Input: words = [\"abc\",\"ab\"]\nOutput: \"\"\nExplanation: A word cannot come before its own prefix.</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>1 &lt;= words.length &lt;= 1000</code></li><li><code>1 &lt;= words[i].length &lt;= 100</code></li><li><code>words[i] consists of lowercase English letters</code></li></ul>",
+  "exampleTestcases": "[\"wrt\",\"wrf\",\"er\",\"ett\",\"rftt\"]\n[\"z\",\"x\"]\n[\"z\",\"x\",\"z\"]\n[\"abc\",\"ab\"]",
+  "metaData": "{\"name\": \"alienOrder\", \"params\": [{\"name\": \"words\", \"type\": \"string[]\"}], \"return\": {\"type\": \"string\"}}",
+  "title": "Alien Dictionary"
+ },
+ "encode-and-decode-strings": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n\n    def encode(self, strs: List[str]) -> str:\n        \n\n    def decode(self, s: str) -> List[str]:\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>Design a scheme that turns a list of strings into a <strong>single string</strong> and back again. Implement <code>encode(strs)</code>, which returns one string, and <code>decode(s)</code>, which returns the original list exactly.</p><p>Strings may contain <strong>any</strong> printable ASCII character, including delimiters you might be tempted to use such as <code>#</code>, <code>,</code> or <code>:</code>. <code>decode</code> runs on a fresh object, so it cannot rely on anything <code>encode</code> stored.</p>\n<p><strong>Example 1:</strong></p><pre>Input: strs = [\"neet\",\"code\",\"love\",\"you\"]\nOutput: [\"neet\",\"code\",\"love\",\"you\"]</pre>\n<p><strong>Example 2:</strong></p><pre>Input: strs = [\"we\",\"say\",\":\",\"yes\"]\nOutput: [\"we\",\"say\",\":\",\"yes\"]</pre>\n<p><strong>Example 3:</strong></p><pre>Input: strs = [\"\", \"#4\", \"\"]\nOutput: [\"\",\"#4\",\"\"]\nExplanation: Empty strings and strings that look like your format must survive the round trip.</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>0 &lt;= strs.length &lt; 200</code></li><li><code>0 &lt;= strs[i].length &lt; 200</code></li><li><code>strs[i] contains printable ASCII characters</code></li></ul>",
+  "exampleTestcases": "[\"neet\",\"code\",\"love\",\"you\"]\n[\"we\",\"say\",\":\",\"yes\"]",
+  "metaData": "{\"name\": \"encode\", \"params\": [{\"name\": \"strs\", \"type\": \"string[]\"}], \"return\": {\"type\": \"string[]\"}}",
+  "title": "Encode and Decode Strings"
+ },
+ "graph-valid-tree": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n    def validTree(self, n: int, edges: List[List[int]]) -> bool:\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>You are given <code>n</code> nodes labelled <code>0</code> to <code>n - 1</code> and a list of undirected <code>edges</code>, where <code>edges[i] = [a, b]</code> connects <code>a</code> and <code>b</code>.</p><p>Return <code>true</code> if these edges form a valid tree: every node is reachable from every other node and there are no cycles. Otherwise return <code>false</code>.</p>\n<p><strong>Example 1:</strong></p><pre>Input: n = 5, edges = [[0,1],[0,2],[0,3],[1,4]]\nOutput: true</pre>\n<p><strong>Example 2:</strong></p><pre>Input: n = 5, edges = [[0,1],[1,2],[2,3],[1,3],[1,4]]\nOutput: false\nExplanation: Nodes 1, 2 and 3 form a cycle.</pre>\n<p><strong>Example 3:</strong></p><pre>Input: n = 4, edges = [[0,1],[2,3]]\nOutput: false\nExplanation: The graph has two separate pieces.</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>1 &lt;= n &lt;= 2000</code></li><li><code>0 &lt;= edges.length &lt;= 5000</code></li><li><code>edges[i].length == 2</code></li><li><code>0 &lt;= a, b &lt; n</code></li><li><code>a != b</code></li><li><code>No edge appears twice</code></li></ul>",
+  "exampleTestcases": "5\n[[0,1],[0,2],[0,3],[1,4]]\n5\n[[0,1],[1,2],[2,3],[1,3],[1,4]]\n4\n[[0,1],[2,3]]",
+  "metaData": "{\"name\": \"validTree\", \"params\": [{\"name\": \"n\", \"type\": \"integer\"}, {\"name\": \"edges\", \"type\": \"integer[][]\"}], \"return\": {\"type\": \"boolean\"}}",
+  "title": "Graph Valid Tree"
+ },
+ "meeting-rooms": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n    def canAttendMeetings(self, intervals: List[List[int]]) -> bool:\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>Given a list of meeting time <code>intervals</code> where <code>intervals[i] = [start, end]</code>, determine whether one person could attend every meeting.</p><p>A meeting that ends at time <code>t</code> does not conflict with one that starts at <code>t</code>.</p>\n<p><strong>Example 1:</strong></p><pre>Input: intervals = [[0,30],[5,10],[15,20]]\nOutput: false</pre>\n<p><strong>Example 2:</strong></p><pre>Input: intervals = [[7,10],[2,4]]\nOutput: true</pre>\n<p><strong>Example 3:</strong></p><pre>Input: intervals = [[1,5],[5,10]]\nOutput: true\nExplanation: Back-to-back meetings are fine.</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>0 &lt;= intervals.length &lt;= 10^4</code></li><li><code>intervals[i].length == 2</code></li><li><code>0 &lt;= start &lt; end &lt;= 10^6</code></li></ul>",
+  "exampleTestcases": "[[0,30],[5,10],[15,20]]\n[[7,10],[2,4]]\n[[1,5],[5,10]]",
+  "metaData": "{\"name\": \"canAttendMeetings\", \"params\": [{\"name\": \"intervals\", \"type\": \"integer[][]\"}], \"return\": {\"type\": \"boolean\"}}",
+  "title": "Meeting Rooms"
+ },
+ "meeting-rooms-ii": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n    def minMeetingRooms(self, intervals: List[List[int]]) -> int:\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>Given a list of meeting time <code>intervals</code> where <code>intervals[i] = [start, end]</code>, return the minimum number of conference rooms needed to hold every meeting.</p><p>A room freed at time <code>t</code> can host a meeting that starts at <code>t</code>.</p>\n<p><strong>Example 1:</strong></p><pre>Input: intervals = [[0,30],[5,10],[15,20]]\nOutput: 2</pre>\n<p><strong>Example 2:</strong></p><pre>Input: intervals = [[7,10],[2,4]]\nOutput: 1</pre>\n<p><strong>Example 3:</strong></p><pre>Input: intervals = [[1,10],[2,9],[3,8]]\nOutput: 3</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>1 &lt;= intervals.length &lt;= 10^4</code></li><li><code>intervals[i].length == 2</code></li><li><code>0 &lt;= start &lt; end &lt;= 10^6</code></li></ul>",
+  "exampleTestcases": "[[0,30],[5,10],[15,20]]\n[[7,10],[2,4]]\n[[1,10],[2,9],[3,8]]",
+  "metaData": "{\"name\": \"minMeetingRooms\", \"params\": [{\"name\": \"intervals\", \"type\": \"integer[][]\"}], \"return\": {\"type\": \"integer\"}}",
+  "title": "Meeting Rooms II"
+ },
+ "number-of-connected-components-in-an-undirected-graph": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n    def countComponents(self, n: int, edges: List[List[int]]) -> int:\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>There are <code>n</code> nodes labelled <code>0</code> to <code>n - 1</code> and a list of undirected <code>edges</code>, where <code>edges[i] = [a, b]</code>.</p><p>Return the number of <strong>connected components</strong>: groups of nodes that can reach each other, with no edge leading outside the group.</p>\n<p><strong>Example 1:</strong></p><pre>Input: n = 5, edges = [[0,1],[1,2],[3,4]]\nOutput: 2\nExplanation: {0, 1, 2} and {3, 4}.</pre>\n<p><strong>Example 2:</strong></p><pre>Input: n = 5, edges = [[0,1],[1,2],[2,3],[3,4]]\nOutput: 1</pre>\n<p><strong>Example 3:</strong></p><pre>Input: n = 3, edges = []\nOutput: 3\nExplanation: Each node is its own component.</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>1 &lt;= n &lt;= 2000</code></li><li><code>0 &lt;= edges.length &lt;= 5000</code></li><li><code>edges[i].length == 2</code></li><li><code>0 &lt;= a, b &lt; n</code></li><li><code>a != b</code></li><li><code>No edge appears twice</code></li></ul>",
+  "exampleTestcases": "5\n[[0,1],[1,2],[3,4]]\n5\n[[0,1],[1,2],[2,3],[3,4]]\n3\n[]",
+  "metaData": "{\"name\": \"countComponents\", \"params\": [{\"name\": \"n\", \"type\": \"integer\"}, {\"name\": \"edges\", \"type\": \"integer[][]\"}], \"return\": {\"type\": \"integer\"}}",
+  "title": "Number of Connected Components in an Undirected Graph"
+ },
+ "walls-and-gates": {
+  "codeSnippets": [
+   {
+    "code": "class Solution:\n    def wallsAndGates(self, rooms: List[List[int]]) -> None:\n        \"\"\"\n        Do not return anything, modify rooms in-place instead.\n        \"\"\"\n        \n",
+    "langSlug": "python3"
+   }
+  ],
+  "content": "<p>You are given an <code>m x n</code> grid <code>rooms</code> where each cell is one of:</p><ul><li><code>-1</code>: a wall or obstacle,</li><li><code>0</code>: a gate,</li><li><code>2147483647</code> (<code>INF</code>): an empty room.</li></ul><p>Fill each empty room <strong>in place</strong> with the number of steps to its nearest gate, moving up, down, left or right through non-wall cells. Rooms that cannot reach any gate stay <code>INF</code>. The function returns nothing; the judge inspects <code>rooms</code> afterwards.</p>\n<p><strong>Example 1:</strong></p><pre>Input: rooms = [[INF,-1,0,INF],[INF,INF,INF,-1],[INF,-1,INF,-1],[0,-1,INF,INF]]\nOutput: [[3,-1,0,1],[2,2,1,-1],[1,-1,2,-1],[0,-1,3,4]]</pre>\n<p><strong>Example 2:</strong></p><pre>Input: rooms = [[-1]]\nOutput: [[-1]]</pre>\n<p><strong>Example 3:</strong></p><pre>Input: rooms = [[0,INF,INF]]\nOutput: [[0,1,2]]</pre>\n<p><strong>Constraints:</strong></p><ul><li><code>m == rooms.length</code></li><li><code>n == rooms[i].length</code></li><li><code>1 &lt;= m, n &lt;= 250</code></li><li><code>rooms[i][j] is -1, 0 or 2147483647</code></li></ul>",
+  "exampleTestcases": "[[2147483647,-1,0,2147483647],[2147483647,2147483647,2147483647,-1],[2147483647,-1,2147483647,-1],[0,-1,2147483647,2147483647]]\n[[-1]]\n[[0,2147483647,2147483647]]",
+  "metaData": "{\"name\": \"wallsAndGates\", \"params\": [{\"name\": \"rooms\", \"type\": \"integer[][]\"}], \"return\": {\"type\": \"void\"}}",
+  "title": "Walls and Gates"
+ }
+}

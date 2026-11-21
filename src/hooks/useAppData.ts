@@ -5,19 +5,17 @@ import type {
   AppSettings,
   Dashboard,
   FocusContext,
-  GardenState,
   JournalEntry,
   ProblemBook,
-  Review,
 } from '../domain'
+import type { StudyState } from '../study/types'
 
 export function useAppData() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
-  const [garden, setGarden] = useState<GardenState | null>(null)
+  const [study, setStudy] = useState<StudyState | null>(null)
   const [focus, setFocus] = useState<FocusContext | null>(null)
   const [reviewFocus, setReviewFocus] = useState<FocusContext | null>(null)
   const [entries, setEntries] = useState<JournalEntry[]>([])
-  const [reviews, setReviews] = useState<Review[]>([])
   const [books, setBooks] = useState<ProblemBook[]>([])
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,28 +31,26 @@ export function useAppData() {
     }
 
     try {
-      const [nextDashboard, nextGarden, nextFocus, nextEntries, nextReviews, nextSettings, nextBooks, nextReviewFocus] =
+      const [nextDashboard, nextStudy, nextFocus, nextEntries, nextSettings, nextBooks, nextReviewFocus] =
         await Promise.all([
           api.dashboard(),
-          api.garden(),
+          api.study(),
           api.focusContext(),
           api.journal(),
-          api.reviews(),
           api.settings(),
           api.library(),
           api.focusContext(true),
         ])
       if (currentRequest !== requestId.current) return
       setDashboard(nextDashboard)
-      setGarden(nextGarden)
+      setStudy(nextStudy)
       setFocus(nextFocus)
       setReviewFocus(nextReviewFocus)
       setEntries(nextEntries)
-      setReviews(nextReviews)
       setSettings(nextSettings)
       setBooks(nextBooks)
       setError('')
-      return nextGarden
+      return nextStudy
     } catch (loadError) {
       if (currentRequest !== requestId.current) return
       setError(errorMessage(loadError))
@@ -69,19 +65,18 @@ export function useAppData() {
 
   return {
     dashboard,
-    garden,
+    study,
     focus,
     reviewFocus,
     setReviewFocus,
     entries,
-    reviews,
     books,
     settings,
     loading,
     error,
     reload,
     setFocus,
-    setGarden,
+    setStudy,
     setSettings,
     setEntries,
   }

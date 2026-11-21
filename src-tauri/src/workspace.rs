@@ -1,6 +1,18 @@
 use crate::error::{AppError, AppResult};
 use tauri::{AppHandle, Manager, State};
 
+/// A bounded, body-free check; never reads the offline cache or blocks webview
+/// creation. Any HTTP response (including auth/challenge errors) means reachable.
+#[tauri::command]
+pub async fn leetcode_reachable() -> AppResult<bool> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(4))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| AppError::Message(e.to_string()))?;
+    Ok(client.head("https://leetcode.com/").send().await.is_ok())
+}
+
 fn leetcode_webview(app: &AppHandle, label: &str) -> AppResult<tauri::Webview> {
     if !label.starts_with("browser-surface-") {
         return Err(AppError::Message("Invalid LeetCode workspace".into()));

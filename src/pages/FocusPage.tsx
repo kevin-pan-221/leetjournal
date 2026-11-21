@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useFocusNotebook } from '../hooks/useFocusNotebook'
 import type { AppSettings, FocusContext } from '../domain'
-import { LeetCodeWorkspace } from '../LeetCodeWorkspace'
+import { ProblemWorkspace } from '../offline/ProblemWorkspace'
 import { Plant } from '../components/Plant'
 import { SpotifyPlayer } from '../spotify/SpotifyPlayer'
 
@@ -31,7 +31,7 @@ function EmptyFocus({ onBack }: { onBack: () => void }) {
     <div className="empty">
       <Plant large />
       <h2>No active session</h2>
-      <p>Choose a problem from Today or Reviews to begin.</p>
+      <p>Choose a problem from Today or Library to begin.</p>
       <button className="primary" onClick={onBack}>Go to Today</button>
     </div>
   )
@@ -43,10 +43,11 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
   const [toolsOpen, setToolsOpen] = useState(() => localStorage.getItem('leetjournal.focus.tools') !== 'closed')
   const [activeTool, setActiveTool] = useState<'notes' | 'hints'>('notes')
   const [webviewLabel, setWebviewLabel] = useState('')
+  const [offlineCode, setOfflineCode] = useState<string | null>(null)
   const {
     notes, notesInputRef, qwenRunning, qwenStatus, noteSaveFailed, canClearQwen,
     stopQwen, clearQwenOutput, retrySave, onNotesChange, onNotesScroll, onNotesKeyDown,
-  } = useFocusNotebook(context, webviewLabel, obscured)
+  } = useFocusNotebook(context, webviewLabel, obscured, offlineCode)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -71,7 +72,7 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
   return (
     <div className="focus-workspace">
       <div className={`workspace-body ${toolsOpen ? '' : 'tools-collapsed'}`}>
-        <LeetCodeWorkspace url={attempt.problem.leetcodeUrl} hidden={obscured} onReadyLabel={setWebviewLabel} />
+        <ProblemWorkspace key={attempt.problem.id} problem={attempt.problem} hidden={obscured} onReadyLabel={setWebviewLabel} onCode={setOfflineCode} />
         <aside className="workspace-side">
           <div className="session-dock">
             <div className="workspace-clock">
@@ -91,7 +92,6 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
           <section className="focus-progress">
             <div><span><Leaf size={13} />{attempt.isReview ? 'Review goal' : 'Focus goal'}</span><b>{percent}%</b></div>
             <div className="focus-progress-track"><i style={{ width: `${percent}%` }} /></div>
-            <small>{Math.max(0, context.targetMinutes - Math.floor(seconds / 60))} minutes remaining</small>
           </section>
           <nav className="tool-tabs two" aria-label="Study tools">
             <button className={activeTool === 'notes' ? 'active' : ''} onClick={() => setActiveTool('notes')}><FileText size={14} />Notes</button>

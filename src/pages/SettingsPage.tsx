@@ -59,7 +59,7 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
       </Card>
       <Card>
         <h3>Appearance</h3>
-        <Toggle label="Plant animations" detail="Gentle movement while focusing" checked={draft.plantAnimations} onChange={(value) => patch('plantAnimations', value)} />
+        <Toggle label="Study animations" detail="Floating book, runes, and enchanted gear" checked={draft.plantAnimations} onChange={(value) => patch('plantAnimations', value)} />
         <label><span>Theme<small>Keep things calm and comfortable</small></span><select value={draft.theme} onChange={(event) => patch('theme', event.target.value)}><option value="warm-garden">Warm garden</option><option value="system">System</option></select></label>
       </Card>
       <LocalAiSettings value={draft.localModel} disabled={saving} onChange={(value) => patch('localModel', value)} />

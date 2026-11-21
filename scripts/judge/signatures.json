@@ -1,0 +1,1774 @@
+{
+ "contains-duplicate": {
+  "name": "containsDuplicate",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "valid-anagram": {
+  "name": "isAnagram",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   },
+   {
+    "name": "t",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "two-sum": {
+  "name": "twoSum",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "group-anagrams": {
+  "name": "groupAnagrams",
+  "params": [
+   {
+    "name": "strs",
+    "type": "string[]"
+   }
+  ],
+  "return": {
+   "type": "list<list<string>>"
+  }
+ },
+ "top-k-frequent-elements": {
+  "name": "topKFrequent",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "product-of-array-except-self": {
+  "name": "productExceptSelf",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "valid-sudoku": {
+  "name": "isValidSudoku",
+  "params": [
+   {
+    "name": "board",
+    "type": "character[][]"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "longest-consecutive-sequence": {
+  "name": "longestConsecutive",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "valid-palindrome": {
+  "name": "isPalindrome",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "two-sum-ii-input-array-is-sorted": {
+  "name": "twoSum",
+  "params": [
+   {
+    "name": "numbers",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "3sum": {
+  "name": "threeSum",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "container-with-most-water": {
+  "name": "maxArea",
+  "params": [
+   {
+    "name": "height",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "trapping-rain-water": {
+  "name": "trap",
+  "params": [
+   {
+    "name": "height",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "best-time-to-buy-and-sell-stock": {
+  "name": "maxProfit",
+  "params": [
+   {
+    "name": "prices",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "longest-substring-without-repeating-characters": {
+  "name": "lengthOfLongestSubstring",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "longest-repeating-character-replacement": {
+  "name": "characterReplacement",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "permutation-in-string": {
+  "name": "checkInclusion",
+  "params": [
+   {
+    "name": "s1",
+    "type": "string"
+   },
+   {
+    "name": "s2",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "minimum-window-substring": {
+  "name": "minWindow",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   },
+   {
+    "name": "t",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "string"
+  }
+ },
+ "sliding-window-maximum": {
+  "name": "maxSlidingWindow",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "valid-parentheses": {
+  "name": "isValid",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "evaluate-reverse-polish-notation": {
+  "name": "evalRPN",
+  "params": [
+   {
+    "name": "tokens",
+    "type": "string[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "daily-temperatures": {
+  "name": "dailyTemperatures",
+  "params": [
+   {
+    "name": "temperatures",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "car-fleet": {
+  "name": "carFleet",
+  "params": [
+   {
+    "name": "target",
+    "type": "integer"
+   },
+   {
+    "name": "position",
+    "type": "integer[]"
+   },
+   {
+    "name": "speed",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "largest-rectangle-in-histogram": {
+  "name": "largestRectangleArea",
+  "params": [
+   {
+    "name": "heights",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "binary-search": {
+  "name": "search",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "search-a-2d-matrix": {
+  "name": "searchMatrix",
+  "params": [
+   {
+    "name": "matrix",
+    "type": "integer[][]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "koko-eating-bananas": {
+  "name": "minEatingSpeed",
+  "params": [
+   {
+    "name": "piles",
+    "type": "integer[]"
+   },
+   {
+    "name": "h",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "find-minimum-in-rotated-sorted-array": {
+  "name": "findMin",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "search-in-rotated-sorted-array": {
+  "name": "search",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "median-of-two-sorted-arrays": {
+  "name": "findMedianSortedArrays",
+  "params": [
+   {
+    "name": "nums1",
+    "type": "integer[]"
+   },
+   {
+    "name": "nums2",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "double"
+  }
+ },
+ "reverse-linked-list": {
+  "name": "reverseList",
+  "params": [
+   {
+    "name": "head",
+    "type": "ListNode"
+   }
+  ],
+  "return": {
+   "type": "ListNode"
+  }
+ },
+ "merge-two-sorted-lists": {
+  "name": "mergeTwoLists",
+  "params": [
+   {
+    "name": "list1",
+    "type": "ListNode"
+   },
+   {
+    "name": "list2",
+    "type": "ListNode"
+   }
+  ],
+  "return": {
+   "type": "ListNode"
+  }
+ },
+ "reorder-list": {
+  "name": "reorderList",
+  "params": [
+   {
+    "name": "head",
+    "type": "ListNode"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "remove-nth-node-from-end-of-list": {
+  "name": "removeNthFromEnd",
+  "params": [
+   {
+    "name": "head",
+    "type": "ListNode"
+   },
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "ListNode"
+  }
+ },
+ "add-two-numbers": {
+  "name": "addTwoNumbers",
+  "params": [
+   {
+    "name": "l1",
+    "type": "ListNode"
+   },
+   {
+    "name": "l2",
+    "type": "ListNode"
+   }
+  ],
+  "return": {
+   "type": "ListNode"
+  }
+ },
+ "find-the-duplicate-number": {
+  "name": "findDuplicate",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "merge-k-sorted-lists": {
+  "name": "mergeKLists",
+  "params": [
+   {
+    "name": "lists",
+    "type": "ListNode[]"
+   }
+  ],
+  "return": {
+   "type": "ListNode"
+  }
+ },
+ "reverse-nodes-in-k-group": {
+  "name": "reverseKGroup",
+  "params": [
+   {
+    "name": "head",
+    "type": "ListNode"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "ListNode"
+  }
+ },
+ "invert-binary-tree": {
+  "name": "invertTree",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "TreeNode"
+  }
+ },
+ "maximum-depth-of-binary-tree": {
+  "name": "maxDepth",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "diameter-of-binary-tree": {
+  "name": "diameterOfBinaryTree",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "balanced-binary-tree": {
+  "name": "isBalanced",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "same-tree": {
+  "name": "isSameTree",
+  "params": [
+   {
+    "name": "p",
+    "type": "TreeNode"
+   },
+   {
+    "name": "q",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "subtree-of-another-tree": {
+  "name": "isSubtree",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   },
+   {
+    "name": "subRoot",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "binary-tree-level-order-traversal": {
+  "name": "levelOrder",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "binary-tree-right-side-view": {
+  "name": "rightSideView",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "list<integer>"
+  }
+ },
+ "count-good-nodes-in-binary-tree": {
+  "name": "goodNodes",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "validate-binary-search-tree": {
+  "name": "isValidBST",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "kth-smallest-element-in-a-bst": {
+  "name": "kthSmallest",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "construct-binary-tree-from-preorder-and-inorder-traversal": {
+  "name": "buildTree",
+  "params": [
+   {
+    "name": "preorder",
+    "type": "integer[]"
+   },
+   {
+    "name": "inorder",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "TreeNode"
+  }
+ },
+ "binary-tree-maximum-path-sum": {
+  "name": "maxPathSum",
+  "params": [
+   {
+    "name": "root",
+    "type": "TreeNode"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "last-stone-weight": {
+  "name": "lastStoneWeight",
+  "params": [
+   {
+    "name": "stones",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "k-closest-points-to-origin": {
+  "name": "kClosest",
+  "params": [
+   {
+    "name": "points",
+    "type": "integer[][]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer[][]"
+  }
+ },
+ "kth-largest-element-in-an-array": {
+  "name": "findKthLargest",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "task-scheduler": {
+  "name": "leastInterval",
+  "params": [
+   {
+    "name": "tasks",
+    "type": "character[]"
+   },
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "subsets": {
+  "name": "subsets",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "combination-sum": {
+  "name": "combinationSum",
+  "params": [
+   {
+    "name": "candidates",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "combination-sum-ii": {
+  "name": "combinationSum2",
+  "params": [
+   {
+    "name": "candidates",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "permutations": {
+  "name": "permute",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "subsets-ii": {
+  "name": "subsetsWithDup",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "generate-parentheses": {
+  "name": "generateParenthesis",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "list<string>"
+  }
+ },
+ "word-search": {
+  "name": "exist",
+  "params": [
+   {
+    "name": "board",
+    "type": "character[][]"
+   },
+   {
+    "name": "word",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "palindrome-partitioning": {
+  "name": "partition",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "list<list<string>>"
+  }
+ },
+ "letter-combinations-of-a-phone-number": {
+  "name": "letterCombinations",
+  "params": [
+   {
+    "name": "digits",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "list<string>"
+  }
+ },
+ "n-queens": {
+  "name": "solveNQueens",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "list<list<string>>"
+  }
+ },
+ "word-search-ii": {
+  "name": "findWords",
+  "params": [
+   {
+    "name": "board",
+    "type": "character[][]"
+   },
+   {
+    "name": "words",
+    "type": "string[]"
+   }
+  ],
+  "return": {
+   "type": "list<string>"
+  }
+ },
+ "max-area-of-island": {
+  "name": "maxAreaOfIsland",
+  "params": [
+   {
+    "name": "grid",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "rotting-oranges": {
+  "name": "orangesRotting",
+  "params": [
+   {
+    "name": "grid",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "pacific-atlantic-water-flow": {
+  "name": "pacificAtlantic",
+  "params": [
+   {
+    "name": "heights",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "list<list<integer>>"
+  }
+ },
+ "surrounded-regions": {
+  "name": "solve",
+  "params": [
+   {
+    "name": "board",
+    "type": "character[][]"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "course-schedule": {
+  "name": "canFinish",
+  "params": [
+   {
+    "name": "numCourses",
+    "type": "integer"
+   },
+   {
+    "name": "prerequisites",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "course-schedule-ii": {
+  "name": "findOrder",
+  "params": [
+   {
+    "name": "numCourses",
+    "type": "integer"
+   },
+   {
+    "name": "prerequisites",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "redundant-connection": {
+  "name": "findRedundantConnection",
+  "params": [
+   {
+    "name": "edges",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "word-ladder": {
+  "name": "ladderLength",
+  "params": [
+   {
+    "name": "beginWord",
+    "type": "string"
+   },
+   {
+    "name": "endWord",
+    "type": "string"
+   },
+   {
+    "name": "wordList",
+    "type": "list<string>"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "network-delay-time": {
+  "name": "networkDelayTime",
+  "params": [
+   {
+    "name": "times",
+    "type": "integer[][]"
+   },
+   {
+    "name": "n",
+    "type": "integer"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "reconstruct-itinerary": {
+  "name": "findItinerary",
+  "params": [
+   {
+    "name": "tickets",
+    "type": "list<list<string>>"
+   }
+  ],
+  "return": {
+   "type": "list<string>"
+  }
+ },
+ "min-cost-to-connect-all-points": {
+  "name": "minCostConnectPoints",
+  "params": [
+   {
+    "name": "points",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "swim-in-rising-water": {
+  "name": "swimInWater",
+  "params": [
+   {
+    "name": "grid",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "cheapest-flights-within-k-stops": {
+  "name": "findCheapestPrice",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   },
+   {
+    "name": "flights",
+    "type": "integer[][]"
+   },
+   {
+    "name": "src",
+    "type": "integer"
+   },
+   {
+    "name": "dst",
+    "type": "integer"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "climbing-stairs": {
+  "name": "climbStairs",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "min-cost-climbing-stairs": {
+  "name": "minCostClimbingStairs",
+  "params": [
+   {
+    "name": "cost",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "house-robber": {
+  "name": "rob",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "house-robber-ii": {
+  "name": "rob",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "longest-palindromic-substring": {
+  "name": "longestPalindrome",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "string"
+  }
+ },
+ "palindromic-substrings": {
+  "name": "countSubstrings",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "decode-ways": {
+  "name": "numDecodings",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "coin-change": {
+  "name": "coinChange",
+  "params": [
+   {
+    "name": "coins",
+    "type": "integer[]"
+   },
+   {
+    "name": "amount",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "maximum-product-subarray": {
+  "name": "maxProduct",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "word-break": {
+  "name": "wordBreak",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   },
+   {
+    "name": "wordDict",
+    "type": "list<string>"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "longest-increasing-subsequence": {
+  "name": "lengthOfLIS",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "partition-equal-subset-sum": {
+  "name": "canPartition",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "unique-paths": {
+  "name": "uniquePaths",
+  "params": [
+   {
+    "name": "m",
+    "type": "integer"
+   },
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "longest-common-subsequence": {
+  "name": "longestCommonSubsequence",
+  "params": [
+   {
+    "name": "text1",
+    "type": "string"
+   },
+   {
+    "name": "text2",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "best-time-to-buy-and-sell-stock-with-cooldown": {
+  "name": "maxProfit",
+  "params": [
+   {
+    "name": "prices",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "coin-change-ii": {
+  "name": "change",
+  "params": [
+   {
+    "name": "amount",
+    "type": "integer"
+   },
+   {
+    "name": "coins",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "target-sum": {
+  "name": "findTargetSumWays",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "target",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "interleaving-string": {
+  "name": "isInterleave",
+  "params": [
+   {
+    "name": "s1",
+    "type": "string"
+   },
+   {
+    "name": "s2",
+    "type": "string"
+   },
+   {
+    "name": "s3",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "longest-increasing-path-in-a-matrix": {
+  "name": "longestIncreasingPath",
+  "params": [
+   {
+    "name": "matrix",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "distinct-subsequences": {
+  "name": "numDistinct",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   },
+   {
+    "name": "t",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "edit-distance": {
+  "name": "minDistance",
+  "params": [
+   {
+    "name": "word1",
+    "type": "string"
+   },
+   {
+    "name": "word2",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "burst-balloons": {
+  "name": "maxCoins",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "regular-expression-matching": {
+  "name": "isMatch",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   },
+   {
+    "name": "p",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "maximum-subarray": {
+  "name": "maxSubArray",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "jump-game": {
+  "name": "canJump",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "jump-game-ii": {
+  "name": "jump",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "gas-station": {
+  "name": "canCompleteCircuit",
+  "params": [
+   {
+    "name": "gas",
+    "type": "integer[]"
+   },
+   {
+    "name": "cost",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "hand-of-straights": {
+  "name": "isNStraightHand",
+  "params": [
+   {
+    "name": "hand",
+    "type": "integer[]"
+   },
+   {
+    "name": "groupSize",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "merge-triplets-to-form-target-triplet": {
+  "name": "mergeTriplets",
+  "params": [
+   {
+    "name": "triplets",
+    "type": "integer[][]"
+   },
+   {
+    "name": "target",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "partition-labels": {
+  "name": "partitionLabels",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "list<integer>"
+  }
+ },
+ "valid-parenthesis-string": {
+  "name": "checkValidString",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "insert-interval": {
+  "name": "insert",
+  "params": [
+   {
+    "name": "intervals",
+    "type": "integer[][]"
+   },
+   {
+    "name": "newInterval",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer[][]"
+  }
+ },
+ "merge-intervals": {
+  "name": "merge",
+  "params": [
+   {
+    "name": "intervals",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer[][]"
+  }
+ },
+ "non-overlapping-intervals": {
+  "name": "eraseOverlapIntervals",
+  "params": [
+   {
+    "name": "intervals",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "minimum-interval-to-include-each-query": {
+  "name": "minInterval",
+  "params": [
+   {
+    "name": "intervals",
+    "type": "integer[][]"
+   },
+   {
+    "name": "queries",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "rotate-image": {
+  "name": "rotate",
+  "params": [
+   {
+    "name": "matrix",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "spiral-matrix": {
+  "name": "spiralOrder",
+  "params": [
+   {
+    "name": "matrix",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "list<integer>"
+  }
+ },
+ "set-matrix-zeroes": {
+  "name": "setZeroes",
+  "params": [
+   {
+    "name": "matrix",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "happy-number": {
+  "name": "isHappy",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "boolean"
+  }
+ },
+ "plus-one": {
+  "name": "plusOne",
+  "params": [
+   {
+    "name": "digits",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "powx-n": {
+  "name": "myPow",
+  "params": [
+   {
+    "name": "x",
+    "type": "double"
+   },
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "double"
+  }
+ },
+ "multiply-strings": {
+  "name": "multiply",
+  "params": [
+   {
+    "name": "num1",
+    "type": "string"
+   },
+   {
+    "name": "num2",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "string"
+  }
+ },
+ "single-number": {
+  "name": "singleNumber",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "number-of-1-bits": {
+  "name": "hammingWeight",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "counting-bits": {
+  "name": "countBits",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "reverse-bits": {
+  "name": "reverseBits",
+  "params": [
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "missing-number": {
+  "name": "missingNumber",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "sum-of-two-integers": {
+  "name": "getSum",
+  "params": [
+   {
+    "name": "a",
+    "type": "integer"
+   },
+   {
+    "name": "b",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "reverse-integer": {
+  "name": "reverse",
+  "params": [
+   {
+    "name": "x",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ }
+}

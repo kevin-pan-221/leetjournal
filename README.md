@@ -21,11 +21,7 @@
   <img alt="macOS" src="https://img.shields.io/badge/platform-macOS-111111?logo=apple&logoColor=white" />
 </p>
 
-<p align="center">
-  <img src="public/garden/countryside.png" width="1100" alt="LeetJournal garden countryside" />
-</p>
-
-LeetJournal brings planning, focused problem solving, reflection, and spaced review into one native workspace. Work on LeetCode inside the app, keep notes beside the editor, and grow a lightly animated garden as your practice compounds.
+LeetJournal brings planning, focused problem solving, and reflection into one native workspace. Work on LeetCode inside the app, keep notes beside the editor, and build a pixel-textured enchanting study through practice.
 
 > [!NOTE]
 > LeetJournal is currently developed and tested on macOS. The Tauri foundation is portable, but Windows and Linux builds have not yet been validated.
@@ -33,12 +29,15 @@ LeetJournal brings planning, focused problem solving, reflection, and spaced rev
 ## Why LeetJournal?
 
 - **Stay in one workspace.** LeetCode opens in a persistent embedded browser, including your signed-in session and editor state.
-- **Know what to practice.** A daily warm-up and main problem are selected from your curriculum and review queue.
-- **Build durable recall.** Reflections feed a mastery-level spaced-review schedule rather than a fixed reminder interval.
-- **Keep a real learning record.** Attempts, notes, confidence, mistakes, streaks, and reviews live in a local SQLite database.
+- **Practice offline with Python.** Save a problem from Library, then use the offline editor with local examples and custom tests. Python is bundled; no separate installation is needed.
+- **Know what to practice.** A daily warm-up and main problem are selected from unsolved curriculum problems. Solved problems stay solved; there are no review deadlines.
+- **Keep a real learning record.** Attempts, notes, confidence, mistakes, and streaks live in a local SQLite database. Existing review history is preserved.
 - **Organize problems like books.** Browse NeetCode 150 and curated company-tagged collections, or create personal books and import LeetCode problem URLs in bulk.
 - **Ask a private local coach.** Optional `@qwen` commands stream from LM Studio; `@big-qwen` includes the active problem title and live editor code, without replaying notebook history.
-- **Make progress visible.** Solved problems and consistent practice gradually bring the garden world to life.
+- **Build your study.** Solve problems to earn XP and lapis—not by leaving a timer running. Fill bookshelves and enchant earned equipment for a 3D armor stand. Offers show mysterious glyphs and level requirements; compatible random enchantments are revealed after purchase. Built-in block textures require no setup or Minecraft installation.
+
+Existing recorded practice counts automatically, with no streak decay. See
+[Study mechanics](docs/STUDY.md) for rewards, enchanting rules, and limitations.
 
 ## Download and install
 
@@ -59,8 +58,99 @@ Do not disable system-wide security protections.
 Maintainers: see [the release checklist](docs/RELEASING.md) for the one-time
 Apple setup, build verification, installation testing, and publishing steps.
 
-LM Studio is **optional**. Planning, focus, notes, journal, reviews, and the
-garden work without it. LeetCode itself needs an internet connection.
+LM Studio is **optional**. Planning, focus, notes, journal, and the
+study work without it. LeetCode itself needs an internet connection; saved
+problems can be practiced in the separate offline Python workspace.
+
+### Offline practice
+
+1. While online, open **Library → NeetCode 150 → Save book offline** to prepare the collection. The same control works for other books. For one problem, open its Library details and choose **Make available offline**.
+2. Start a focus session normally. LeetCode opens directly while online—no saved-problem read or offline editor download is needed first. If the connection drops, the saved Python workspace opens automatically. Your statement, available diagrams, starter, code draft and tests stay on this device. Filter Library by **Saved offline** to find downloads.
+3. Edit in the Python editor (highlighting, line numbers, completion, indentation and undo). Click **Run** or use **⌘/Ctrl Enter**. Add cases using named argument fields and optional expected output; values use JSON notation. The comparison can ignore outer array order or inspect an argument after execution for in-place methods.
+4. **Submit** (**⌘/Ctrl '**) judges your code against the problem's hidden tests, like LeetCode: tests run in order and stop at the first failure with **Accepted**, **Wrong Answer** (input, output, expected), **Runtime Error**, **Time Limit Exceeded** (last executed input) or **Compile Error**. **Use as testcase** copies a failing hidden test into your cases. The **Submissions** tab keeps your last 50 results per problem with their code. Every NeetCode 150 problem has a judge, including design classes (LRU Cache, Min Stack…), linked-list cycles, graph cloning and codecs. The seven Premium-only problems (Alien Dictionary, Meeting Rooms I/II, Walls and Gates, Graph Valid Tree, Number of Connected Components, Encode and Decode Strings) ship with LeetJournal's own statements and open in the offline workspace even when online. Other NeetCode problems show **Practice offline** above LeetCode.
+5. In the offline workspace, **Code options → Bring code from LeetCode** can read the still-open online editor and asks before replacing your offline draft. **Copy to LeetCode** copies your offline code and opens the online workspace; paste into LeetCode’s Python3 editor and submit there. The two editors keep separate drafts—nothing is submitted or overwritten silently.
+
+There are no download controls above the online browser; problems with an
+offline judge show one **Practice offline** switch. Downloads and refreshes live in Library. Connection changes are event-driven, supplemented
+by a delayed, bounded reachability check on entry/foreground (not continuous
+polling). A failed check is confirmed once before switching. When connectivity
+returns, the offline editor stays open so typing is not interrupted; choose
+**Return to LeetCode** when ready. **Try LeetCode** remains available if network
+detection is wrong. Old manually selected offline-mode preferences are ignored.
+
+Book downloads run one at a time, with a short pause between requests. You can
+navigate elsewhere while they continue, or **Pause download** after the current
+problem. **Save remaining** skips saved copies—even after restarting the app—and
+never replaces existing code or custom tests. Network errors or rate limits pause
+the queue; unavailable/restricted statements are listed instead of bypassed.
+Downloads do not mark problems solved or change sessions, journal entries or reviews.
+Saving a statement does not guarantee that its custom judge is supported locally.
+
+#### The offline judge
+
+Hidden tests are generated for LeetJournal, not copied from LeetCode: each
+problem has fixed edge cases (LeetCode's public examples first), seeded random
+cases, and a few large inputs that separate efficient solutions from brute force.
+Expected answers come from reference solutions in `scripts/judge/`, which are
+cross-checked against LeetCode's official examples. Problems that accept several
+answers use order-insensitive comparison or a validator (topological order, alien
+alphabet, longest palindrome); floating-point answers allow 1e-5 error. A
+submission has 6 seconds once Python starts (optimal solutions take well under
+one). Runtime is measured locally and is not comparable to LeetCode's percentiles.
+Accepted submissions are a practice log only. They never mark problems solved or
+change reviews; use the reflection for that.
+
+Python runs in WebAssembly with Python's default recursion limit of about 1000
+nested calls. LeetCode allows more, so hidden tests keep trees, lists, grids and
+top-down DP within that depth. Raising the limit yourself can stop the run.
+
+```bash
+npm run judge:build   # regenerate public/offline-judge (deterministic)
+npm run judge:check   # submit a correct solution for all 150 through the harness
+```
+
+Contributors can prepare an existing library without opening a window using the
+same download queue (use your actual app database path and book ID):
+
+```bash
+cargo run --manifest-path src-tauri/Cargo.toml --example prepare_offline -- \
+  "$HOME/Library/Application Support/com.leetjournal.app/leetjournal.sqlite3" neetcode-150
+```
+
+The utility only writes the offline cache, never creates a new database, and can
+be interrupted safely. It reports incomplete downloads with a nonzero exit code.
+
+Drafts autosave to SQLite, with a local recovery copy written while you type.
+**Saved offline · refresh** in Library updates the saved statement and diagrams without replacing
+your code or tests. Duplicate a case to try an input variation; result summaries
+separate output-only cases from checked answers and open the first failure for you.
+Failed saves show a retry action, and recovery survives leaving or reopening the
+editor. Testcase fields retain unfinished input. Tab indents in the code editor;
+**Shift-Alt-M** on macOS (**Ctrl-M** elsewhere) toggles Tab keyboard navigation.
+Drag either divider to resize the description or tests (arrow keys also work;
+double-click resets). Panel sizes are remembered. Expand the code pane or collapse
+tests for more editing space. Switching between Offline and LeetCode within the
+same session keeps the offline cursor, undo history, selected case and results;
+an explicit code import starts a fresh history. Narrow workspaces use Description
+and Code tabs instead of squeezing both panels together.
+
+Local runs use bundled Python/WebAssembly in a disposable worker, stop after
+eight seconds of execution, and can be cancelled. The runtime is released after
+each run and when leaving the workspace. Only the Python standard library is
+bundled; no code or tests are sent to a server. Run only code you trust.
+
+**Limits:** these are public examples and your own tests, not LeetCode's hidden
+judge. Passing them is not an official acceptance and does not award solve
+credit automatically. Supported problems use ordinary `Solution` methods with
+JSON-compatible inputs/outputs (including LeetCode's nested `list<…>` types),
+linked lists, binary trees and arrays of these nodes. In-place methods
+can compare a selected argument after execution. Design, interactive and
+custom-judge behavior is not replicated. Comparisons are local exact JSON values
+(or outer-array order-insensitive when selected), not LeetCode’s per-problem
+validators or performance rankings. Small raster diagrams from trusted LeetCode
+asset hosts are cached; unavailable diagrams are labeled. Refresh existing
+downloads from Library to save diagrams. Restricted problems cannot be downloaded. `@big-qwen` reads the
+offline editor when that mode is active; local AI still needs a downloaded model.
 
 ## Build from source (contributors)
 
@@ -225,7 +315,7 @@ The idle widget has no launch prompt. Music metadata is never sent to Qwen.
 2. Start or resume the focus session; only one attempt stays active at a time.
 3. Solve inside the embedded LeetCode workspace and capture notes alongside it.
 4. Press <kbd>Esc</kbd> to pause and leave safely, or choose **Finish & reflect** when done.
-5. Record the outcome, confidence, and mistakes. LeetJournal schedules the next review and updates garden progress.
+5. Record the outcome, confidence, and mistakes. Successful solves stay marked as solved and earn Study progress, without scheduling another review.
 6. Revisit completed work in **Journal** and due problems in **Reviews**.
 
 ## Curated problem sources
