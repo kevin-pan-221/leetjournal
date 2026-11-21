@@ -29,3 +29,9 @@ export function compileCaseDrafts(cases: CaseDraft[]): LocalTest[] {
     return value
   })
 }
+
+/** Saved tests win, except an empty case list: older versions saved one for problems they
+ * could not run (design classes), which would otherwise hide the judge's examples forever. */
+export function initialTests(saved: string, examples: string) {
+  return saved && readCaseDrafts(saved)?.length !== 0 ? saved : examples
+}

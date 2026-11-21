@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { Copy, RotateCcw, Play, Square, Code2, FileText, Maximize2, Minimize2, ChevronDown, ChevronUp, CloudUpload, History } from 'lucide-react'
 import { errorMessage } from '../utils/errors'
 import { examplesFromText, parseMetadata, parseTests } from './tests'
-import { caseDraft, readCaseDrafts, writeCaseDrafts } from './cases'
+import { caseDraft, initialTests, readCaseDrafts, writeCaseDrafts } from './cases'
 import { runPython, submitPython } from './runner'
 import { Statement, statementText } from './Statement'
 import { PythonEditor } from './PythonEditor'
@@ -27,7 +27,7 @@ export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOn
   const examples = useMemo(() => writeCaseDrafts((pack ? pack.examples
     : examplesFromText(saved.snapshot.exampleTestcases ?? '', statementText(saved.snapshot.content), metadata?.params.length ?? 0)
       .map(c => metadata?.return.type === 'void' ? { ...c, observe: 0 } : c)).map(caseDraft)), [pack, saved.snapshot, metadata])
-  const draft = useOfflineDraft(saved, saved.tests || examples, onDraft)
+  const draft = useOfflineDraft(saved, initialTests(saved.tests, examples), onDraft)
   const submissions = useSubmissions(saved.problemId)
   const [running, setRunning] = useState<'run' | 'submit' | null>(null)
   const [runStatus, setRunStatus] = useState('')
