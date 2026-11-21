@@ -18,9 +18,9 @@ import type { JudgePack, LocalTest, OfflineProblem, OfflineSubmission, Submissio
 
 type LeftTab = 'description' | 'submissions' | 'result'
 interface Shown { result: SubmissionResult | null; code: string; submittedAt?: string; error: string }
-interface Props { saved: OfflineProblem; pack: JudgePack | null; onCode: (code: string | null) => void; onDraft?: (code: string, tests: string) => void; hidden: boolean; onSubmitOnline?: () => void }
+interface Props { saved: OfflineProblem; pack: JudgePack | null; onCode: (code: string | null) => void; onDraft?: (code: string, tests: string) => void; hidden: boolean; onSubmitOnline?: () => void; onImportOnline?: () => void; importing?: boolean }
 
-export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOnline }: Props) {
+export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOnline, onImportOnline, importing = false }: Props) {
   // The bundled judge knows signatures LeetCode marks as custom (design classes, linked-list cycles…).
   const metadata = useMemo(() => parseMetadata(pack ? JSON.stringify(pack.metadata) : saved.snapshot.metaData), [pack, saved.snapshot.metaData])
   const judge = useMemo(() => pack ? { mode: pack.mode, checker: pack.checker } : null, [pack])
@@ -126,6 +126,7 @@ export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOn
           : <><button disabled={!metadata || hidden} title="Run your test cases (⌘/Ctrl Enter)" onClick={run}><Play size={14} />Run</button>
             {pack && <button className="primary" disabled={hidden} title="Judge against hidden tests (⌘/Ctrl ')" onClick={submit}><CloudUpload size={14} />Submit</button>}</>}
         {onSubmitOnline && <button disabled={Boolean(running)} title="Copy your code and open LeetCode’s Python3 editor to submit online." onClick={() => void copy(true)}>Copy to LeetCode</button>}
+        {onImportOnline && <button disabled={Boolean(running) || importing} title="Read the code in LeetCode’s editor; asks before replacing your offline draft." onClick={onImportOnline}>{importing ? 'Reading…' : 'From LeetCode'}</button>}
       </div>
       <span className="offline-workbench-notice" role="status">{notice}</span>
     </header>

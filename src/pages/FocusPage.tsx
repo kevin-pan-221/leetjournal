@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   Check,
   ExternalLink,
+  FlaskConical,
+  Globe,
   FileText,
   Leaf,
   Lightbulb,
@@ -14,6 +16,7 @@ import {
 import { useFocusNotebook } from '../hooks/useFocusNotebook'
 import type { AppSettings, FocusContext } from '../domain'
 import { ProblemWorkspace } from '../offline/ProblemWorkspace'
+import type { JudgeIndexEntry } from '../offline/judge'
 import { Plant } from '../components/Plant'
 import { SpotifyPlayer } from '../spotify/SpotifyPlayer'
 
@@ -44,6 +47,8 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
   const [activeTool, setActiveTool] = useState<'notes' | 'hints'>('notes')
   const [webviewLabel, setWebviewLabel] = useState('')
   const [offlineCode, setOfflineCode] = useState<string | null>(null)
+  // Which view the problem shows, per problem: LeetCode or the offline judge.
+  const [view, setView] = useState<{ problemId: string; offline: boolean; judge: JudgeIndexEntry | null } | null>(null)
   const {
     notes, notesInputRef, qwenRunning, qwenStatus, noteSaveFailed, canClearQwen,
     stopQwen, clearQwenOutput, retrySave, onNotesChange, onNotesScroll, onNotesKeyDown,
@@ -57,6 +62,11 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
   if (!context) return <EmptyFocus onBack={onBack} />
 
   const { attempt } = context
+  const current = view?.problemId === attempt.problem.id ? view : null
+  const offline = current?.offline ?? false
+  const judge = current?.judge ?? null
+  const setOffline = (value: boolean) => setView(v => ({ problemId: attempt.problem.id, judge: v?.problemId === attempt.problem.id ? v.judge : null, offline: value }))
+  const setJudge = (entry: JudgeIndexEntry | null) => setView(v => ({ problemId: attempt.problem.id, offline: v?.problemId === attempt.problem.id ? v.offline : false, judge: entry }))
   const started = new Date(attempt.startedAt).getTime()
   const pauseExtra = attempt.pausedAt ? now - new Date(attempt.pausedAt).getTime() : 0
   const seconds = Math.max(0, Math.floor((now - started - pauseExtra) / 1000) - attempt.pausedSeconds)
@@ -72,7 +82,8 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
   return (
     <div className="focus-workspace">
       <div className={`workspace-body ${toolsOpen ? '' : 'tools-collapsed'}`}>
-        <ProblemWorkspace key={attempt.problem.id} problem={attempt.problem} hidden={obscured} onReadyLabel={setWebviewLabel} onCode={setOfflineCode} />
+        <ProblemWorkspace key={attempt.problem.id} problem={attempt.problem} hidden={obscured} onReadyLabel={setWebviewLabel} onCode={setOfflineCode}
+          offline={offline} onOfflineChange={setOffline} onJudge={setJudge} />
         <aside className="workspace-side">
           <div className="session-dock">
             <div className="workspace-clock">
@@ -85,10 +96,17 @@ export function FocusPage({ context, settings, onPause, onFinish, onBack, obscur
             <button className="tools-toggle" onClick={toggleTools} title={toolsOpen ? 'Hide study tools' : 'Show study tools'} aria-label={toolsOpen ? 'Hide study tools' : 'Show study tools'}>
               {toolsOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
             </button>
+            {judge && <button className="mode-toggle" onClick={() => setOffline(!offline)} title={offline ? 'Open on LeetCode' : `Practice offline · ${judge.tests} hidden tests`} aria-label={offline ? 'Open on LeetCode' : 'Practice offline'}>
+              {offline ? <Globe size={16} /> : <FlaskConical size={16} />}
+            </button>}
             <a className="external-link" href={attempt.problem.leetcodeUrl} target="_blank" rel="noreferrer" title="Open in external browser">
               <ExternalLink size={16} />
             </a>
           </div>
+          {judge && <nav className="workspace-mode" aria-label="Problem view">
+            <button aria-pressed={!offline} onClick={() => setOffline(false)}><Globe size={13} />LeetCode</button>
+            <button aria-pressed={offline} onClick={() => setOffline(true)} title={`Local Python judge · ${judge.tests} hidden tests`}><FlaskConical size={13} />Offline</button>
+          </nav>}
           <section className="focus-progress">
             <div><span><Leaf size={13} />{attempt.isReview ? 'Review goal' : 'Focus goal'}</span><b>{percent}%</b></div>
             <div className="focus-progress-track"><i style={{ width: `${percent}%` }} /></div>

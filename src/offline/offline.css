@@ -131,8 +131,6 @@
 
 .offline-mode-label b.good,.offline-submissions .good { color:#4d7a2c }
 .offline-mode-label b.bad,.offline-submissions .bad { color:#a24e3a }
-.offline-judge-switch { display:flex; align-items:center; justify-content:flex-end; gap:10px; font-size:11px; color:#81796b }
-.offline-judge-switch button { font:inherit; display:inline-flex; align-items:center; gap:6px; border:1px solid #cdd5bf; border-radius:7px; background:#eef1e7; color:#5f7547; padding:5px 9px; cursor:pointer }
 .offline-submission { font-size:13px; color:#45483b }
 .offline-link { font:inherit; font-size:11px; display:inline-flex; align-items:center; gap:5px; border:0; background:none; color:#81796b; padding:0; cursor:pointer; margin-bottom:14px }
 .offline-submission>header { display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 14px; margin-bottom:18px }
