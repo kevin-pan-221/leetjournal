@@ -16,9 +16,11 @@ interface Props {
   onCode: (code: string | null) => void
   onReturnOnline: (copied?: boolean) => void
   onCheckConnection: () => void
+  /** The page offers its own LeetCode / Offline switch, so this view need not repeat it. */
+  switchElsewhere?: boolean
 }
 
-export default function OfflineFallback({ problem, connected, hidden, onlineLabel, onCode, onReturnOnline, onCheckConnection }: Props) {
+export default function OfflineFallback({ problem, connected, hidden, onlineLabel, onCode, onReturnOnline, onCheckConnection, switchElsewhere = false }: Props) {
   const { saved, loading, downloading, error, download, updateDraft } = useOfflineProblem(problem.id)
   const [editorRevision, setEditorRevision] = useState(0)
   const [importing, setImporting] = useState(false)
@@ -65,17 +67,16 @@ export default function OfflineFallback({ problem, connected, hidden, onlineLabe
     if (alive.current) { setPendingImport(null); setMessage('') }
   }
   return <>
-    <div className="offline-connection" role="status">
-      <span>{bundled ? 'LeetCode Premium problem · practicing LeetJournal’s bundled version.' : connected ? 'Offline workspace · Your draft is saved on this device.' : 'Connection unavailable · Using your saved Python workspace.'}</span>
-      <button onClick={() => onReturnOnline()}>{connected ? 'Open on LeetCode' : 'Try LeetCode'}</button>
+    {(!switchElsewhere || !connected || bundled) && <div className="offline-connection" role="status">
+      <span>{bundled ? 'LeetCode Premium problem · practicing LeetJournal’s bundled version.' : !connected ? 'Connection unavailable · Using your saved Python workspace.' : switchElsewhere ? '' : 'Offline workspace · Your draft is saved on this device.'}</span>
+      {(!switchElsewhere || !connected) && <button onClick={() => onReturnOnline()}>{connected ? 'Open on LeetCode' : 'Try LeetCode'}</button>}
       {!connected && <button onClick={onCheckConnection}>Check connection</button>}
-      {saved && onlineLabel && <details><summary>Code options</summary><button disabled={importing} onClick={() => void importCode()}>{importing ? 'Reading editor…' : 'Bring code from LeetCode'}</button></details>}
-    </div>
+    </div>}
     {error && <p className="offline-toolbar-error" role="alert">{error}</p>}
     {message && <div className="offline-transfer-message" role="status">{message}<button aria-label="Dismiss message" onClick={() => setMessage('')}>×</button></div>}
     {pendingImport !== null && <div className="offline-import-confirm" role="alertdialog" aria-label="Replace offline Python draft"><h3>Bring this code offline?</h3><p>This replaces the saved offline code for {problem.title}. Make sure the LeetCode editor is set to Python3. Online code is left unchanged.</p><button autoFocus disabled={importing} onClick={() => setPendingImport(null)}>Cancel</button><button disabled={importing} className="primary" onClick={() => void confirmImport()}>{importing ? 'Saving…' : 'Replace offline draft'}</button></div>}
     {(loading || (saved && pack === undefined) || (bundled && !saved && !error)) && <div className="offline-empty">Opening saved problem…</div>}
-    {!loading && saved && pack !== undefined && <OfflineEditor key={`${problem.id}:${editorRevision}`} saved={saved} pack={pack} onCode={onCode} onDraft={updateDraft} hidden={hidden || pendingImport !== null} onSubmitOnline={() => onReturnOnline(true)} />}
+    {!loading && saved && pack !== undefined && <OfflineEditor key={`${problem.id}:${editorRevision}`} saved={saved} pack={pack} onCode={onCode} onDraft={updateDraft} hidden={hidden || pendingImport !== null} onSubmitOnline={() => onReturnOnline(true)} onImportOnline={onlineLabel ? () => void importCode() : undefined} importing={importing} />}
     {!loading && !saved && !(bundled && !error) && <div className="offline-empty"><h2>No offline copy yet</h2><p>This problem hasn’t been saved on this device. Once connected, save it from Library for next time.</p>{connected && <button className="primary" disabled={downloading} onClick={() => void download()}>{downloading ? 'Saving…' : 'Save this problem'}</button>}</div>}
   </>
 }
