@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { loadPyodide } from 'pyodide'
 import { examplesFromText, parseMetadata, parseTests } from '../src/offline/tests.ts'
 import { createDraftStore } from '../src/offline/draftStore.ts'
-import { caseDraft, duplicateCaseDraft, readCaseDrafts, writeCaseDrafts } from '../src/offline/cases.ts'
+import { caseDraft, duplicateCaseDraft, initialTests, readCaseDrafts, writeCaseDrafts } from '../src/offline/cases.ts'
 import { firstResultToInspect, summarizeResults, validResults } from '../src/offline/results.ts'
 import { clampSplit, readSplit, saveSplit } from '../src/offline/layout.ts'
 import { latestBookProgress } from '../src/offline/bookProgress.ts'
@@ -178,4 +178,13 @@ test('storage denial does not prevent database saves or in-memory recovery', asy
   const store=createDraftStore(async()=>{},()=>{throw Error('quota')})
   const draft={code:'saved',tests:''}; assert.equal(store.stage('p',draft),false)
   assert.deepEqual(store.recover('p'),draft); await store.save('p',draft); assert.equal(store.recover('p'),null)
+})
+
+test('an empty saved case list falls back to examples, but real or unreadable saved tests are kept', () => {
+  const examples = writeCaseDrafts([caseDraft({args:[[1]],expected:1})])
+  assert.equal(initialTests('', examples), examples)
+  assert.equal(initialTests(writeCaseDrafts([]), examples), examples)
+  const mine = writeCaseDrafts([caseDraft({args:[[2]]})])
+  assert.equal(initialTests(mine, examples), mine)
+  assert.equal(initialTests('{broken', examples), '{broken') // kept for manual repair
 })
