@@ -41,11 +41,13 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
   const [offlineIds, setOfflineIds] = useState<string[]>([])
   const onOfflineSaved = useCallback((ids: string[]) => setOfflineIds(current => [...new Set([...current, ...ids])]), [])
   useEffect(() => { let alive = true; void api.offlineProblems().then(ids => { if (alive) onOfflineSaved(ids) }).catch(() => {}); return () => { alive = false } }, [onOfflineSaved])
+  const [acceptedIds, setAcceptedIds] = useState<string[]>([])
+  useEffect(() => { let alive = true; void api.offlineAccepted().then(ids => { if (alive) setAcceptedIds(ids) }).catch(() => {}); return () => { alive = false } }, [])
   const categories = [...new Set(items.map((item) => item.problem.category))]
   const visible = items.filter((item) =>
     (category === 'All' || item.problem.category === category)
     && (difficulty === 'All' || item.problem.difficulty === difficulty)
-    && (status === 'All' || (status === 'Saved offline' ? offlineIds.includes(item.problem.id) : item.status === status))
+    && (status === 'All' || (status === 'Saved offline' ? offlineIds.includes(item.problem.id) : status === 'Accepted offline' ? acceptedIds.includes(item.problem.id) : item.status === status))
     && item.problem.title.toLowerCase().includes(query.toLowerCase()))
   const rendered = visible.slice(0, visibleCount)
   const history = selected ? entries.filter((entry) => entry.problem.id === selected.problem.id) : []
@@ -65,7 +67,7 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
         <label><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${items.length} problems…`} /></label>
         <select value={category} onChange={(event) => setCategory(event.target.value)}><option>All</option>{categories.map((value) => <option key={value}>{value}</option>)}</select>
         <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option>All</option><option>Easy</option><option>Medium</option><option>Hard</option></select>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}><option>All</option><option>Unseen</option><option>Attempted</option><option>Solved</option><option>Saved offline</option></select>
+        <select value={status} onChange={(event) => setStatus(event.target.value)}><option>All</option><option>Unseen</option><option>Attempted</option><option>Solved</option><option>Saved offline</option><option>Accepted offline</option></select>
       </div>
       <div className="curriculum-layout">
         <aside className="topic-list">
@@ -74,7 +76,7 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
         </aside>
         <Card className="problem-table">
           <div className="problem-table-head"><span>Problem</span><span>Difficulty</span><span>Status</span><span /></div>
-          {rendered.map((item) => <button className="problem-row" key={item.problem.id} onClick={() => setSelected(item)}><span><i>{item.problem.orderIndex}</i><span><b>{item.problem.title}</b><small>{item.problem.category}{offlineIds.includes(item.problem.id) && ' · Saved offline'}</small></span></span><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip><span className={`status status-${item.status.toLowerCase().replace(' ', '-')}`}>{item.status}</span><ChevronRight size={16} /></button>)}
+          {rendered.map((item) => <button className="problem-row" key={item.problem.id} onClick={() => setSelected(item)}><span><i>{item.problem.orderIndex}</i><span><b>{item.problem.title}</b><small>{item.problem.category}{acceptedIds.includes(item.problem.id) ? <em className="offline-accepted" title="Accepted by the offline judge"> · ✓ Accepted offline</em> : offlineIds.includes(item.problem.id) && ' · Saved offline'}</small></span></span><Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip><span className={`status status-${item.status.toLowerCase().replace(' ', '-')}`}>{item.status}</span><ChevronRight size={16} /></button>)}
           {!visible.length && <div className="no-results">No problems match these filters.</div>}
           {rendered.length < visible.length && <button className="problem-load-more" onClick={() => setVisibleCount((count) => count + 100)}>Show 100 more <span>{visible.length - rendered.length} remaining</span></button>}
         </Card>

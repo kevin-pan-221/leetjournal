@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { FinishAttemptInput } from '../domain'
+import type { OfflineSubmission } from '../offline/types'
+import { verdictLabel } from '../offline/judge'
 import { errorMessage } from '../utils/errors'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
@@ -21,11 +23,13 @@ interface ReflectionDialogProps {
   problemTitle: string
   initialValues?: Omit<FinishAttemptInput, 'attemptId'>
   initialNotes: string
+  /** This session's offline judge result, shown for context. */
+  offlineResult?: OfflineSubmission | null
   onSave: (input: Omit<FinishAttemptInput, 'attemptId'>) => Promise<void>
   onCancel: () => void
 }
 
-export function ReflectionDialog({ problemTitle, initialValues, initialNotes, onSave, onCancel }: ReflectionDialogProps) {
+export function ReflectionDialog({ problemTitle, initialValues, initialNotes, offlineResult, onSave, onCancel }: ReflectionDialogProps) {
   const [outcome, setOutcome] = useState(initialValues?.outcome ?? 'Solved')
   const [confidence, setConfidence] = useState(initialValues?.confidence ?? 4)
   const [notes, setNotes] = useState(initialNotes)
@@ -55,6 +59,7 @@ export function ReflectionDialog({ problemTitle, initialValues, initialNotes, on
         </button>
         <span className="eyebrow">{initialValues ? 'Edit reflection' : 'Log entry'} · {problemTitle}</span>
         <h2 id="reflection-title">How did it go?</h2>
+        {offlineResult && <p className="reflection-judge">Offline judge this session: <b className={offlineResult.verdict === 'accepted' ? 'good' : 'bad'}>{offlineResult.verdict === 'accepted' ? '✓ ' : ''}{verdictLabel[offlineResult.verdict]}</b> · {offlineResult.passed} / {offlineResult.total} tests</p>}
         <div className="outcomes">
           {outcomes.map((value, index) => (
             <button disabled={saving} className={outcome === value ? 'selected' : ''} onClick={() => setOutcome(value)} key={value}>

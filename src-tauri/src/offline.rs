@@ -361,6 +361,22 @@ pub(crate) fn list_submissions(
     Ok(rows)
 }
 
+/// Problems with at least one Accepted offline submission (practice log only; never marks them solved).
+#[tauri::command]
+pub fn list_offline_accepted(db: State<Db>) -> AppResult<Vec<String>> {
+    accepted_problems(&db.0.lock().unwrap())
+}
+
+pub(crate) fn accepted_problems(conn: &Connection) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT problem_id FROM offline_submissions WHERE verdict='accepted' ORDER BY problem_id",
+    )?;
+    let rows = stmt
+        .query_map([], |r| r.get(0))?
+        .collect::<Result<Vec<String>, _>>()?;
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,10 +452,12 @@ mod tests {
         for _ in 0..(SUBMISSION_HISTORY + 5) {
             record_submission(&conn, "one", make("wrong-answer", 3)).unwrap();
         }
+        assert!(accepted_problems(&conn).unwrap().is_empty());
         let last = record_submission(&conn, "one", make("accepted", 10)).unwrap();
         let rows = list_submissions(&conn, "one").unwrap();
         assert_eq!(rows.len() as i64, SUBMISSION_HISTORY);
         assert_eq!(rows[0].id, last.id);
         assert_eq!(rows[0].verdict, "accepted");
+        assert_eq!(accepted_problems(&conn).unwrap(), vec!["one".to_string()]);
     }
 }

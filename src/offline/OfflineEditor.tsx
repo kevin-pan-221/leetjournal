@@ -4,7 +4,7 @@ import { Copy, RotateCcw, Play, Square, Code2, FileText, Maximize2, Minimize2, C
 import { errorMessage } from '../utils/errors'
 import { examplesFromText, parseMetadata, parseTests } from './tests'
 import { caseDraft, initialTests, readCaseDrafts, writeCaseDrafts } from './cases'
-import { runPython, submitPython } from './runner'
+import { keepPythonWarm, runPython, submitPython } from './runner'
 import { Statement, statementText } from './Statement'
 import { PythonEditor } from './PythonEditor'
 import { TestCases } from './TestCases'
@@ -52,6 +52,8 @@ export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOn
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => { onCode(hidden ? null : draft.code); return () => onCode(null) }, [draft.code, hidden, onCode])
   useEffect(() => () => { cancel.current?.() }, [])
+  // Load Python in the background while this editor is open so Run and Submit start immediately.
+  useEffect(() => metadata ? keepPythonWarm() : undefined, [metadata])
   const finish = () => { cancel.current = null; runLock.current = false; setRunning(null) }
   const stop = () => {
     if (!runLock.current) return
@@ -142,7 +144,7 @@ export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOn
         {leftTab === 'description' && <><h2>{saved.snapshot.title}</h2><Statement html={saved.snapshot.content} images={saved.snapshot.images} /></>}
         {leftTab === 'submissions' && <SubmissionsList items={submissions.items} error={submissions.error} onOpen={openSubmission} />}
         {leftTab === 'result' && shown && <SubmissionResultView result={shown.result} pending={judging} error={shown.error} code={shown.code} submittedAt={shown.submittedAt}
-          metadata={metadata} canAddCase={caseCount < 20} onAddCase={shown.result?.failure && metadata ? addFailingCase : undefined}
+          metadata={metadata} ordered={!pack || (pack.checker === 'exact' && !pack.tests[shown.result?.failure?.index ?? -1]?.unordered)} canAddCase={caseCount < 20} onAddCase={shown.result?.failure && metadata ? addFailingCase : undefined}
           onRestore={shown.code !== draft.code && !running ? () => { setReset({ field: 'code', value: shown.code, label: 'your code with this submission' }); setMobileTab('code') } : undefined}
           onBack={() => setLeftTab('description')} />}
       </div>
@@ -158,7 +160,7 @@ export function OfflineEditor({ saved, pack, onCode, onDraft, hidden, onSubmitOn
       <nav className="offline-test-tabs" aria-label="Local test panels"><button aria-pressed={testTab === 'tests' && !testsCollapsed} onClick={() => { setTestTab('tests'); setTestsCollapsed(false) }}>Testcase</button><button aria-pressed={testTab === 'results' && !testsCollapsed} onClick={() => { setTestTab('results'); setTestsCollapsed(false) }}>Test Result{results.length > 0 ? ` · ${results.length} case${results.length === 1 ? '' : 's'}` : ''}</button>{testTab === 'tests' && metadata && !testsCollapsed && <button className="offline-reset-cases" disabled={Boolean(running)} onClick={() => setReset({ field: 'tests', value: examples, label: 'your test cases with the examples' })}>Restore examples</button>}<button className="offline-test-toggle" aria-label={testsCollapsed ? 'Show test panel' : 'Collapse test panel'} aria-expanded={!testsCollapsed} onClick={() => setTestsCollapsed(!testsCollapsed)}>{testsCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button></nav>
       <div className="offline-test-panel" hidden={testsCollapsed}>
         <div hidden={testTab !== 'tests'}>{metadata ? <TestCases value={draft.tests} metadata={metadata} judged={Boolean(pack)} customCompare={!pack || pack.mode === 'function'} disabled={Boolean(running)} onChange={value => edit('tests', value)} /> : <p>Local test execution is unavailable for this problem type.</p>}</div>
-        <div hidden={testTab !== 'results'}><TestResults results={results} cases={runCases} metadata={metadata} running={running === 'run'} status={runStatus} error={error} /></div>
+        <div hidden={testTab !== 'results'}><TestResults results={results} cases={runCases} metadata={metadata} running={running === 'run'} status={runStatus} error={error} checker={pack?.checker} /></div>
       </div>
       <footer title="Hidden tests are generated for LeetJournal from reference solutions, not LeetCode’s own judge data. Submitting never marks a problem solved. Python uses a disposable worker, not an operating-system security sandbox.">{pack ? 'Local judge · Python 3 · Run only code you trust' : 'Local tests · Run only code you trust'}</footer>
     </section>
