@@ -104,6 +104,7 @@ pub fn run() {
             offline::save_offline_draft,
             offline::record_offline_submission,
             offline::list_offline_submissions,
+            offline::list_offline_accepted,
             offline_batch::save_offline_book,
             offline_batch::pause_offline_book,
             offline_batch::offline_book_status,

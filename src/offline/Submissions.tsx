@@ -3,11 +3,9 @@ import { ArrowLeft, Copy, FlaskConical, History, RotateCcw } from 'lucide-react'
 import { api } from '../api'
 import { verdictLabel } from './judge'
 import type { MethodMetadata, OfflineSubmission, SubmissionResult } from './types'
+import { formatValue } from './diff'
+import { DiffView } from './DiffView'
 
-/** Harness previews stop at 4 KB and come back as a string ending in "…". */
-export function formatValue(value: unknown) {
-  return typeof value === 'string' && value.endsWith('…') && value.length > 4000 ? value : JSON.stringify(value)
-}
 
 export function formatInput(args: unknown[], metadata: MethodMetadata | null) {
   return args.map((value, i) => `${metadata?.params[i]?.name ?? `arg${i + 1}`} =\n${formatValue(value)}`).join('\n')
@@ -55,13 +53,15 @@ interface ResultProps {
   code: string
   submittedAt?: string
   metadata: MethodMetadata | null
+  /** Whether output order matters for this problem (highlights then point at positions). */
+  ordered: boolean
   canAddCase: boolean
   onAddCase?: () => void
   onRestore?: () => void
   onBack: () => void
 }
 
-export function SubmissionResultView({ result, pending, error, code, submittedAt, metadata, canAddCase, onAddCase, onRestore, onBack }: ResultProps) {
+export function SubmissionResultView({ result, pending, error, code, submittedAt, metadata, ordered, canAddCase, onAddCase, onRestore, onBack }: ResultProps) {
   const [copied, setCopied] = useState(false)
   if (pending) return <div className="offline-submission">
     <button className="offline-link" onClick={onBack}><ArrowLeft size={13} />Description</button>
@@ -89,7 +89,7 @@ export function SubmissionResultView({ result, pending, error, code, submittedAt
     {failure && <section className="offline-failure">
       <h4>{result.verdict === 'wrong-answer' ? 'Input' : 'Last Executed Input'} <small>hidden test {failure.index + 1}</small></h4>
       <pre>{formatInput(failure.args, metadata)}</pre>
-      {'actual' in failure && <><h4>Output</h4><pre className="mismatch">{formatValue(failure.actual)}</pre></>}
+      {'actual' in failure && <><h4>Output</h4>{'expected' in failure ? <DiffView actual={failure.actual} expected={failure.expected} ordered={ordered} /> : <pre className="mismatch">{formatValue(failure.actual)}</pre>}</>}
       {'expected' in failure && <><h4>Expected</h4><pre>{formatValue(failure.expected)}</pre></>}
       {failure.stdout && <><h4>Stdout</h4><pre>{failure.stdout}</pre></>}
       {onAddCase && <button disabled={!canAddCase} title={canAddCase ? 'Add this input to your test cases' : 'Test cases are limited to 20'} onClick={onAddCase}><FlaskConical size={13} />Use as testcase</button>}

@@ -16,13 +16,54 @@ interface WorkerEvents {
 // Development-only event trace for native QA (WebKit workers cannot be inspected headlessly).
 const trace = (event: string) => { if (import.meta.env.DEV) ((globalThis as { __judgeTrace?: string[] }).__judgeTrace ??= []).push(`${Math.round(performance.now())} ${event}`) }
 
-function startWorker(payload: unknown, limitMs: number, on: WorkerEvents) {
+const createWorker = () => new Worker(new URL(`${import.meta.env.BASE_URL}offline-runner.js`, document.baseURI), { type: 'module' })
+
+// One spare worker loads Python in the background while an offline editor is open, so Run and Submit
+// start immediately. Each run still consumes its own worker; a new spare is made once the run ends.
+interface Spare { worker: Worker; failed: boolean }
+let spare: Spare | null = null
+let warmers = 0
+let release: ReturnType<typeof setTimeout> | undefined
+function makeSpare(): Spare {
+  trace('create spare')
+  const made: Spare = { worker: createWorker(), failed: false }
+  made.worker.onmessage = ({ data }) => { if (data?.type === 'load-failed') made.failed = true }
+  made.worker.onerror = () => { made.failed = true }
+  return made
+}
+function replenish() { if (warmers > 0 && !spare) spare = makeSpare() }
+
+/** Keep Python loaded while the caller is mounted. Returns the release function. */
+export function keepPythonWarm() {
+  warmers += 1
+  clearTimeout(release)
+  replenish()
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    warmers -= 1
+    // A short grace period covers remounts (StrictMode, switching problems) without reloading Python.
+    if (!warmers) release = setTimeout(() => { if (!warmers && spare) { spare.worker.terminate(); spare = null } }, 5_000)
+  }
+}
+
+function takeWorker() {
+  const taken = spare
+  spare = null
+  if (taken && !taken.failed) { trace('use spare'); return taken.worker }
+  taken?.worker.terminate()
   trace('create worker')
-  const worker = new Worker(new URL(`${import.meta.env.BASE_URL}offline-runner.js`, document.baseURI), { type: 'module' })
+  return createWorker()
+}
+
+function startWorker(payload: unknown, limitMs: number, on: WorkerEvents) {
+  const worker = takeWorker()
   let stopped = false
   let ready = false
   let timer: ReturnType<typeof setTimeout>
-  const stop = () => { stopped = true; clearTimeout(timer); worker.terminate() }
+  // Load the next spare once this run has ended, so it never competes with the code being timed.
+  const stop = () => { stopped = true; clearTimeout(timer); worker.terminate(); setTimeout(replenish) }
   const fail = (message: string, kind: Parameters<WorkerEvents['failure']>[1]) => { trace(`fail ${kind} stopped=${stopped}`); if (!stopped) { stop(); on.failure(message, kind) } }
   timer = setTimeout(() => fail('Python could not start within 30 seconds. Try again.', 'start'), 30_000)
   worker.onmessage = ({ data }) => {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronRight, Flame, Play, Sparkles } from 'lucide-react'
 import type { AppSettings, Dashboard, FocusContext, Problem } from '../domain'
 import type { StudyState } from '../study/types'
+import { api } from '../api'
 import { Card, Chip } from '../components/ui'
 
 interface TodayPageProps {
@@ -21,6 +22,8 @@ export function TodayPage({ data, settings, study, active, onStart, onResume, on
   const main = plan.items.find((item) => item.kind === 'Main problem') ?? plan.items[0]
   const [selectedKey, setSelectedKey] = useState(main ? planKey(main.kind, main.problem.id) : '')
   const selected = plan.items.find((item) => planKey(item.kind, item.problem.id) === selectedKey) ?? main
+  const [acceptedIds, setAcceptedIds] = useState<string[]>([])
+  useEffect(() => { let alive = true; void api.offlineAccepted().then(ids => { if (alive) setAcceptedIds(ids) }).catch(() => {}); return () => { alive = false } }, [])
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
@@ -68,7 +71,7 @@ export function TodayPage({ data, settings, study, active, onStart, onResume, on
                   <div>
                     <small>{item.kind}</small>
                     <strong>{item.problem.title}</strong>
-                    <p>{item.problem.category} · ~ {item.estimatedMinutes} min</p>
+                    <p>{item.problem.category} · ~ {item.estimatedMinutes} min{acceptedIds.includes(item.problem.id) && <em className="offline-accepted" title="Accepted by the offline judge"> · ✓ Accepted offline</em>}</p>
                   </div>
                   <Chip tone={item.problem.difficulty.toLowerCase()}>{item.problem.difficulty}</Chip>
                   {index < plan.items.length - 1 && <span className="line" />}

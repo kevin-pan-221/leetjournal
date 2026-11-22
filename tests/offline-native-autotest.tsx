@@ -10,14 +10,15 @@ import '../src/workspace.css'
 // invert-binary-tree in the QA database so it can be read without screen access.
 const correctAlien = "class Solution:\n    def alienOrder(self, words: List[str]) -> str:\n        adj = {c: set() for w in words for c in w}\n        for a, b in zip(words, words[1:]):\n            for x, y in zip(a, b):\n                if x != y:\n                    adj[x].add(y)\n                    break\n            else:\n                if len(a) > len(b):\n                    return ''\n        state, out = {}, []\n        def dfs(c):\n            if c in state:\n                return state[c]\n            state[c] = True\n            for d in sorted(adj[c], reverse=True):\n                if dfs(d):\n                    return True\n            state[c] = False\n            out.append(c)\n        for c in sorted(adj, reverse=True):\n            if dfs(c):\n                return ''\n        return ''.join(reversed(out))\n"
 const lru = "class LRUCache:\n    def __init__(self, capacity: int):\n        self.cap = capacity\n        self.d = OrderedDict()\n    def get(self, key: int) -> int:\n        if key not in self.d:\n            return -1\n        self.d.move_to_end(key)\n        return self.d[key]\n    def put(self, key: int, value: int) -> None:\n        self.d[key] = value\n        self.d.move_to_end(key)\n        if len(self.d) > self.cap:\n            self.d.popitem(last=False)\n"
-const steps: { slug: string; code: string; expect: string; online?: boolean }[] = [
+// warm: wait for the background worker first (the timing should then be well under a second).
+const steps: { slug: string; code: string; expect: string; warm?: boolean }[] = [
   { slug: 'alien-dictionary', code: correctAlien, expect: 'Accepted' },
-  { slug: 'two-sum', online: true, expect: 'Time Limit Exceeded', code: "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        for i in range(len(nums)):\n            for j in range(i + 1, len(nums)):\n                if nums[i] + nums[j] == target:\n                    return [i, j]\n" },
-  { slug: 'two-sum', online: true, expect: 'Accepted', code: "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        seen = {}\n        for i, v in enumerate(nums):\n            if target - v in seen:\n                return [seen[target - v], i]\n            seen[v] = i\n" },
-  { slug: 'lru-cache', online: true, expect: 'Wrong Answer', code: lru.replace('        self.d.move_to_end(key)\n        return self.d[key]', '        return self.d[key]') },
-  { slug: 'lru-cache', online: true, expect: 'Accepted', code: lru },
-  { slug: 'reverse-linked-list', online: true, expect: 'Accepted', code: "class Solution:\n    def reverseList(self, head: Optional[ListNode]) -> Optional[ListNode]:\n        if not head or not head.next:\n            return head\n        new = self.reverseList(head.next)\n        head.next.next = head\n        head.next = None\n        return new\n" },
-  { slug: 'serialize-and-deserialize-binary-tree', online: true, expect: 'Accepted', code: "class Codec:\n    def serialize(self, root):\n        out = []\n        def go(n):\n            if not n:\n                out.append('#'); return\n            out.append(str(n.val)); go(n.left); go(n.right)\n        go(root)\n        return ','.join(out)\n    def deserialize(self, data):\n        vals = iter(data.split(','))\n        def go():\n            v = next(vals)\n            if v == '#': return None\n            n = TreeNode(int(v)); n.left = go(); n.right = go(); return n\n        return go()\n" },
+  { slug: 'two-sum', warm: true, expect: 'Time Limit Exceeded', code: "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        for i in range(len(nums)):\n            for j in range(i + 1, len(nums)):\n                if nums[i] + nums[j] == target:\n                    return [i, j]\n" },
+  { slug: 'two-sum', warm: true, expect: 'Accepted', code: "class Solution:\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\n        seen = {}\n        for i, v in enumerate(nums):\n            if target - v in seen:\n                return [seen[target - v], i]\n            seen[v] = i\n" },
+  { slug: 'lru-cache', warm: true, expect: 'Wrong Answer', code: lru.replace('        self.d.move_to_end(key)\n        return self.d[key]', '        return self.d[key]') },
+  { slug: 'lru-cache', warm: true, expect: 'Accepted', code: lru },
+  { slug: 'reverse-linked-list', warm: true, expect: 'Accepted', code: "class Solution:\n    def reverseList(self, head: Optional[ListNode]) -> Optional[ListNode]:\n        if not head or not head.next:\n            return head\n        new = self.reverseList(head.next)\n        head.next.next = head\n        head.next = None\n        return new\n" },
+  { slug: 'serialize-and-deserialize-binary-tree', warm: true, expect: 'Accepted', code: "class Codec:\n    def serialize(self, root):\n        out = []\n        def go(n):\n            if not n:\n                out.append('#'); return\n            out.append(str(n.val)); go(n.left); go(n.right)\n        go(root)\n        return ','.join(out)\n    def deserialize(self, data):\n        vals = iter(data.split(','))\n        def go():\n            v = next(vals)\n            if v == '#': return None\n            n = TreeNode(int(v)); n.left = go(); n.right = go(); return n\n        return go()\n" },
 ]
 const log: string[] = []
 let started = false
@@ -50,11 +51,8 @@ function Fixture() {
           await api.saveOfflineDraft(s.slug, s.code, '')
         } catch (e) { note(`${s.slug}: setup failed ${String(e)}`); continue }
         setRun(-1); await sleep(300); setRun(i)
-        if (s.online) {
-          const practice = await waitFor(() => button('.offline-judge-switch button', 'Practice offline'), 15000)
-          if (!practice) { note(`${s.slug}: FAIL no Practice offline switch`); continue }
-          note(`${s.slug}: Practice offline switch shown`); practice.click()
-        }
+        // Give the background Python worker time to warm, as a person reading the problem would.
+        await sleep(s.warm ? 4000 : 0)
         const submit = await waitFor(() => button('.offline-workbench-actions button', 'Submit'), 20000)
         if (!submit) { note(`${s.slug}: FAIL no Submit button (${document.querySelector('.offline-view')?.textContent?.slice(0, 200)})`); continue }
         const started = Date.now()
@@ -79,7 +77,7 @@ function Fixture() {
   }, [])
   return <div className="focus-workspace" style={{ padding: 12, height: '100vh', display: 'flex', flexDirection: 'column', gap: 8 }}>
     <b style={{ fontSize: 12 }}>Offline judge autotest · {step ? `${run + 1}/${steps.length} ${step.slug}` : 'preparing'}</b>
-    {step && <ProblemWorkspace key={`${run}`} problem={{ id: step.slug, title: step.slug, category: 'QA', difficulty: 'Medium', leetcodeUrl: `https://leetcode.com/problems/${step.slug}/`, orderIndex: 0 } as never} hidden={false} onCode={() => {}} onReadyLabel={() => {}} />}
+    {step && <ProblemWorkspace key={`${run}`} problem={{ id: step.slug, title: step.slug, category: 'QA', difficulty: 'Medium', leetcodeUrl: `https://leetcode.com/problems/${step.slug}/`, orderIndex: 0 } as never} hidden={false} onCode={() => {}} onReadyLabel={() => {}} offline onOfflineChange={() => {}} />}
   </div>
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><Fixture /></React.StrictMode>)

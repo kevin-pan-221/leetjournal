@@ -9,6 +9,8 @@ import { isFocusPage, type Page } from './app/page'
 import { closeLeetCodeWorkspace, hideLeetCodeWorkspace, LeetCodeWorkspace } from './LeetCodeWorkspace'
 import { ConfirmLeave } from './components/ConfirmLeave'
 import { ReflectionDialog } from './components/ReflectionDialog'
+import type { OfflineSubmission } from './offline/types'
+import { pickSessionSubmission } from './offline/judge'
 import { Sidebar } from './components/Sidebar'
 import { useAppData } from './hooks/useAppData'
 import { FocusPage } from './pages/FocusPage'
@@ -24,6 +26,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('today')
   const [logging, setLogging] = useState(false)
   const [reflectionNotes, setReflectionNotes] = useState('')
+  const [sessionJudge, setSessionJudge] = useState<OfflineSubmission | null>(null)
   const [actionError, setActionError] = useState('')
   const isReviewMode = page === 'review-focus'
   const focusMode = isFocusPage(page)
@@ -120,6 +123,8 @@ export default function App() {
     // Native child webviews sit above HTML dialogs. Hide before opening the form
     // and return input focus to the app instead of leaving it in the editor.
     setReflectionNotes(notes ?? focus.attempt.notes)
+    const { problem, startedAt } = focus.attempt
+    setSessionJudge(await api.offlineSubmissions(problem.id).then(rows => pickSessionSubmission(rows, startedAt), () => null))
     setLogging(true)
     try {
       await hideLeetCodeWorkspace()
@@ -184,7 +189,7 @@ export default function App() {
       </main>
       {focus && page === 'today' && <div className="leetcode-prewarm" aria-hidden="true"><LeetCodeWorkspace url={focus.attempt.problem.leetcodeUrl} hidden /></div>}
       {confirmLeave && focus && <ConfirmLeave isReview={isReviewMode} problem={focus.attempt.problem.title} onStay={() => setConfirmLeave(false)} onPauseExit={pauseAndExit} onEnd={endSession} />}
-      {logging && focus && <ReflectionDialog problemTitle={focus.attempt.problem.title} initialNotes={reflectionNotes} onSave={finish} onCancel={() => { setLogging(false); setReflectionNotes('') }} />}
+      {logging && focus && <ReflectionDialog problemTitle={focus.attempt.problem.title} initialNotes={reflectionNotes} offlineResult={sessionJudge} onSave={finish} onCancel={() => { setLogging(false); setReflectionNotes('') }} />}
       {actionError && <div className="leave-session-backdrop">
         <section className="leave-session-dialog" role="alertdialog" aria-modal="true" aria-labelledby="action-error-title">
           <h2 id="action-error-title">Couldn't complete that action</h2>

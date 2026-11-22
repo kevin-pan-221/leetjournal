@@ -1,4 +1,4 @@
-import type { JudgePack, LocalTest, SubmissionResult, Verdict } from './types.ts'
+import type { JudgePack, LocalTest, OfflineSubmission, SubmissionResult, Verdict } from './types.ts'
 
 export interface JudgeIndexEntry { tests: number; mode: string; bundled: boolean }
 const base = () => (import.meta.env?.BASE_URL ?? '/') + 'offline-judge/'
@@ -56,4 +56,11 @@ export function validSubmission(value: unknown, total: number): value is Submiss
     && Number.isFinite(r.runtimeMs) && r.runtimeMs >= 0 && (r.error === undefined || typeof r.error === 'string')
     && (r.verdict === 'accepted') === (r.passed === total)
     && (r.failure === undefined || (Number.isInteger(r.failure.index) && Array.isArray(r.failure.args) && typeof r.failure.stdout === 'string')))
+}
+
+/** The offline submission that best describes a focus session (rows newest first): its latest Accepted, else its latest. */
+export function pickSessionSubmission(items: OfflineSubmission[], startedAt: string) {
+  const start = new Date(startedAt).getTime()
+  const during = items.filter(item => new Date(item.submittedAt).getTime() >= start)
+  return during.find(item => item.verdict === 'accepted') ?? during[0] ?? null
 }

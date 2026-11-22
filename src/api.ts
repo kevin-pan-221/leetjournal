@@ -43,6 +43,7 @@ export const api = {
   saveOfflineDraft: (problemId: string, code: string, tests: string) => invoke<void>('save_offline_draft', { problemId, code, tests }),
   recordOfflineSubmission: (problemId: string, submission: Omit<OfflineSubmission, 'id' | 'submittedAt'>) => invoke<OfflineSubmission>('record_offline_submission', { problemId, submission }),
   offlineSubmissions: (problemId: string) => invoke<OfflineSubmission[]>('list_offline_submissions', { problemId }),
+  offlineAccepted: () => invoke<string[]>('list_offline_accepted'),
   localModels: () => invoke<{ key: string; label: string; isDefault: boolean }[]>('list_local_models'),
   downloadDefaultModel: () => invoke<ModelDownloadStatus>('download_default_model'),
   modelDownloadStatus: () => invoke<ModelDownloadStatus | null>('default_model_download_status'),

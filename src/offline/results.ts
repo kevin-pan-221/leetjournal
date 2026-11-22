@@ -30,3 +30,13 @@ export function validResults(value: unknown, count: number): value is TestResult
       && (row.error === undefined || boundedText(row.error))
       && (row.durationMs === undefined || (Number.isFinite(row.durationMs) && row.durationMs >= 0)))
 }
+
+/** LeetCode-style headline for a Run: any error, then any mismatch, decides it. */
+export function runVerdict(results: TestResult[]): { label: string; tone: 'good' | 'bad' | 'neutral' } {
+  if (results.some(row => row.status === 'error')) return { label: 'Runtime Error', tone: 'bad' }
+  if (results.some(row => row.status === 'different')) return { label: 'Wrong Answer', tone: 'bad' }
+  if (results.some(row => row.status === 'passed')) return { label: 'Accepted', tone: 'good' }
+  return { label: 'Finished', tone: 'neutral' }
+}
+
+export const formatDuration = (ms = 0) => ms < 1 ? `${ms.toFixed(2)} ms` : ms < 100 ? `${ms.toFixed(1)} ms` : `${Math.round(ms)} ms`
