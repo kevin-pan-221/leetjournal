@@ -137,6 +137,7 @@ pub fn run() {
             commands::remove_book_problem,
             commands::delete_problem_book,
             commands::get_book_problems,
+            commands::get_problem_books,
             qwen::ask_qwen,
             qwen::list_local_models,
             qwen::download::download_default_model,

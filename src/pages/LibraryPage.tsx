@@ -20,13 +20,36 @@ interface LibraryPageProps {
 
 interface ProblemListProps {
   book: ProblemBook
+  books: ProblemBook[]
   items: ProblemOverview[]
   entries: JournalEntry[]
   onStart: (problem: Problem) => void
   onSetToday: (kind: 'Warm-up' | 'Main problem', problem: Problem) => void
 }
 
-function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListProps) {
+/** Where a problem appears. It is one shared problem, so adding it to a book copies nothing. */
+function ProblemShelves({ problem, books, current }: { problem: Problem; books: ProblemBook[]; current: string }) {
+  const [ids, setIds] = useState<string[] | null>(null)
+  const [message, setMessage] = useState('')
+  useEffect(() => { let alive = true; void api.problemBooks(problem.id).then(next => { if (alive) setIds(next) }).catch(() => {}); return () => { alive = false } }, [problem.id])
+  if (!ids) return null
+  const others = books.filter(b => ids.includes(b.id) && b.id !== current)
+  const personal = books.filter(b => !b.builtIn && !ids.includes(b.id))
+  const add = async (bookId: string) => {
+    try {
+      await api.importBookProblems(bookId, { urls: [problem.leetcodeUrl], category: problem.category, difficulty: problem.difficulty as 'Easy' | 'Medium' | 'Hard' })
+      setIds(current => [...(current ?? []), bookId])
+      setMessage(`Added to ${books.find(b => b.id === bookId)?.title}`)
+    } catch (error) { setMessage(errorMessage(error)) }
+  }
+  return <div className="problem-shelves">
+    <span>{others.length ? <>Also in {others.map(b => b.title).join(', ')}</> : 'Only in this book'}</span>
+    {personal.length > 0 && <select aria-label="Add to a personal book" value="" onChange={event => { if (event.target.value) void add(event.target.value) }}><option value="">Add to a book…</option>{personal.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}</select>}
+    {message && <small role="status">{message}</small>}
+  </div>
+}
+
+function ProblemList({ book, books, items, entries, onStart, onSetToday }: ProblemListProps) {
   const [view, setView] = useState(() => readBookView(book.id))
   const { query, difficulty, status } = view
   const category = view.category === 'All' || items.some((item) => item.problem.category === view.category) ? view.category : 'All'
@@ -81,7 +104,7 @@ function ProblemList({ book, items, entries, onStart, onSetToday }: ProblemListP
           {rendered.length < visible.length && <button className="problem-load-more" onClick={() => setVisibleCount((count) => count + 100)}>Show 100 more <span>{visible.length - rendered.length} remaining</span></button>}
         </Card>
       </div>
-      {selected && <div className="modal-backdrop"><div className="problem-modal"><button className="modal-close" onClick={() => setSelected(null)}><X /></button><span className="eyebrow">#{selected.problem.orderIndex} · {selected.problem.category}</span><h2>{selected.problem.title}</h2><div className="problem-meta"><Chip tone={selected.problem.difficulty.toLowerCase()}>{selected.problem.difficulty}</Chip><span className={`status status-${selected.status.toLowerCase().replace(' ', '-')}`}>{selected.status}</span><span>{selected.attemptCount} {selected.attemptCount === 1 ? 'attempt' : 'attempts'}</span></div><div className="problem-actions"><button className="primary" onClick={() => onStart(selected.problem)}><Play size={16} />Start focus</button><button onClick={() => onSetToday('Warm-up', selected.problem)}>Use as warm-up</button><button onClick={() => onSetToday('Main problem', selected.problem)}>Use as main</button><a href={selected.problem.leetcodeUrl} target="_blank" rel="noreferrer">Open LeetCode</a></div><SaveOfflineButton key={selected.problem.id} problemId={selected.problem.id} leetcodeUrl={selected.problem.leetcodeUrl} onSaved={() => setOfflineIds(ids => [...new Set([...ids, selected.problem.id])])} /><h3>Attempt history</h3>{history.length ? history.map((entry) => <div className="history-row" key={entry.id}><span><b>{entry.outcome}</b><small>{new Date(entry.completedAt).toLocaleDateString()}</small></span><span>{Math.max(1, Math.round(entry.durationSeconds / 60))} min</span><span>Confidence {entry.confidence}/5</span></div>) : <p className="muted-copy">No attempts yet. Start this problem when you’re ready.</p>}</div></div>}
+      {selected && <div className="modal-backdrop"><div className="problem-modal"><button className="modal-close" onClick={() => setSelected(null)}><X /></button><span className="eyebrow">#{selected.problem.orderIndex} · {selected.problem.category}</span><h2>{selected.problem.title}</h2><div className="problem-meta"><Chip tone={selected.problem.difficulty.toLowerCase()}>{selected.problem.difficulty}</Chip><span className={`status status-${selected.status.toLowerCase().replace(' ', '-')}`}>{selected.status}</span><span>{selected.attemptCount} {selected.attemptCount === 1 ? 'attempt' : 'attempts'}</span></div><div className="problem-actions"><button className="primary" onClick={() => onStart(selected.problem)}><Play size={16} />Start focus</button><button onClick={() => onSetToday('Warm-up', selected.problem)}>Use as warm-up</button><button onClick={() => onSetToday('Main problem', selected.problem)}>Use as main</button><a href={selected.problem.leetcodeUrl} target="_blank" rel="noreferrer">Open LeetCode</a></div><ProblemShelves key={`books-${selected.problem.id}`} problem={selected.problem} books={books} current={book.id} /><SaveOfflineButton key={selected.problem.id} problemId={selected.problem.id} leetcodeUrl={selected.problem.leetcodeUrl} onSaved={() => setOfflineIds(ids => [...new Set([...ids, selected.problem.id])])} /><h3>Attempt history</h3>{history.length ? history.map((entry) => <div className="history-row" key={entry.id}><span><b>{entry.outcome}</b><small>{new Date(entry.completedAt).toLocaleDateString()}</small></span><span>{Math.max(1, Math.round(entry.durationSeconds / 60))} min</span><span>Confidence {entry.confidence}/5</span></div>) : <p className="muted-copy">No attempts yet. Start this problem when you’re ready.</p>}</div></div>}
     </div>
   )
 }
@@ -133,7 +156,7 @@ export function LibraryPage({ books, entries, onStart, onSetToday, onReload }: L
         {!openBook.builtIn && <button className="book-edit-trigger" onClick={() => setEditing(true)}><Pencil size={14} /> Edit collection</button>}
         {loadingItems ? <div className="page empty-book" role="status">Loading problems…</div>
           : error ? <div className="page empty-book"><h1>Couldn’t open this book</h1><p>{error}</p><button className="primary" onClick={() => void loadItems(openBook)}>Try again</button></div>
-          : items.length ? <ProblemList key={openBook.id} book={openBook} items={items} entries={entries} onStart={onStart} onSetToday={onSetToday} />
+          : items.length ? <ProblemList key={openBook.id} book={openBook} books={books} items={items} entries={entries} onStart={onStart} onSetToday={onSetToday} />
             : <div className="page empty-book"><div className={`empty-book-cover ${openBook.accent}`}><BookOpen /></div><h1>{openBook.title}</h1><p>This book is waiting for its first problem list.</p>{openBook.builtIn ? <button className="primary" onClick={() => setOpenBook(null)}>Return to library</button> : <button className="primary" onClick={() => setEditing(true)}>Import problems</button>}</div>}
         {editing && <BookEditor book={openBook} items={items} onClose={() => setEditing(false)} onUpdated={async (book) => { setOpenBook(book); await onReload() }} onItemsChanged={async () => { await loadItems(openBook); await onReload() }} onDeleted={async () => { setEditing(false); setOpenBook(null); await onReload() }} />}
       </div>

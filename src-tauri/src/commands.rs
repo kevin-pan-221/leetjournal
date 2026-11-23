@@ -994,7 +994,7 @@ fn problem_slug(raw_url: &str) -> AppResult<String> {
     Ok(slug.to_string())
 }
 
-fn title_from_slug(slug: &str) -> String {
+pub(crate) fn title_from_slug(slug: &str) -> String {
     slug.split('-')
         .filter(|word| !word.is_empty())
         .map(|word| {
@@ -1160,6 +1160,20 @@ pub fn delete_problem_book(book_id: String, db: State<Db>) -> AppResult<()> {
         ));
     }
     Ok(())
+}
+
+/// The books that list a problem. The problem itself (history, notes, offline copy) is shared.
+#[tauri::command]
+pub fn get_problem_books(problem_id: String, db: State<Db>) -> AppResult<Vec<String>> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(
+        "SELECT b.id FROM problem_book_items i JOIN problem_books b ON b.id=i.book_id
+         WHERE i.problem_id=? ORDER BY b.built_in DESC,b.order_index,b.created_at",
+    )?;
+    let ids = stmt
+        .query_map([problem_id], |r| r.get(0))?
+        .collect::<Result<Vec<String>, _>>()?;
+    Ok(ids)
 }
 
 #[tauri::command]

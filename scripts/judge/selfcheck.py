@@ -112,7 +112,7 @@ class Solution:
 WRAPPER = '''
 import sys as _sys
 _sys.path.insert(0, {path!r})
-import lib as _lib, p_arrays, p_lists_trees, p_search, p_dp, p_design
+import lib as _lib, p_arrays, p_lists_trees, p_search, p_dp, p_design, p_extra
 _spec = _lib.PROBLEMS[{slug!r}]
 _params, _ret = {params!r}, {ret!r}
 
@@ -175,7 +175,7 @@ class Solution:
 DESIGN_WRAPPER = '''
 import sys as _sys
 _sys.path.insert(0, {path!r})
-import lib, p_arrays, p_lists_trees, p_search, p_dp, p_design
+import lib, p_arrays, p_lists_trees, p_search, p_dp, p_design, p_extra
 from p_design import *
 DetectSquares = p_design.DetectSquaresRef
 '''
