@@ -27,7 +27,7 @@ ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 
 import lib  # noqa: E402
-import p_arrays, p_lists_trees, p_search, p_dp, p_design  # noqa: E402,F401
+import p_arrays, p_lists_trees, p_search, p_dp, p_design, p_extra  # noqa: E402,F401
 from bundled import BUNDLED  # noqa: E402
 
 harness = {}
@@ -36,6 +36,8 @@ matches = harness['matches']
 
 OUT = ROOT / 'public' / 'offline-judge'
 NEETCODE_150 = [line.strip() for line in (HERE / 'neetcode150.txt').read_text().splitlines() if line.strip()]
+# Further problems from the All LeetCode Problems book (reference solutions in p_extra.py).
+EXTRA = [line.strip() for line in (HERE / 'extra.txt').read_text().splitlines() if line.strip()]
 MAX_BYTES = 1_500_000
 # LeetCode method signatures (name, parameter names and types) for function problems.
 SIGNATURES = json.loads((HERE / 'signatures.json').read_text())
@@ -121,12 +123,12 @@ def verify_examples(path):
 
 def main():
     args = sys.argv[1:]
-    missing = [s for s in NEETCODE_150 if s not in lib.PROBLEMS]
+    missing = [s for s in NEETCODE_150 + EXTRA if s not in lib.PROBLEMS]
     if missing:
         raise SystemExit('Missing reference solutions: ' + ', '.join(missing))
     OUT.mkdir(parents=True, exist_ok=True)
     index, total = {}, 0
-    for slug in NEETCODE_150:
+    for slug in NEETCODE_150 + EXTRA:
         pack = build_problem(lib.PROBLEMS[slug])
         data = json.dumps(pack, separators=(',', ':'), allow_nan=False)
         if len(data) > MAX_BYTES:
@@ -137,7 +139,7 @@ def main():
     bundled = {slug: json.loads((OUT / f'{slug}.json').read_text())['bundled'] for slug in index if index[slug]['bundled']}
     # The desktop app stores these without contacting LeetCode (their statements are Premium-only there).
     (ROOT / 'src-tauri' / 'src' / 'offline_bundled.json').write_text(json.dumps(bundled, indent=1, sort_keys=True) + '\n')
-    (OUT / 'index.json').write_text(json.dumps({'version': 1, 'book': 'neetcode-150', 'problems': index}, separators=(',', ':')))
+    (OUT / 'index.json').write_text(json.dumps({'version': 1, 'problems': index}, separators=(',', ':')))
     for stale in OUT.glob('*.json'):
         if stale.stem not in index and stale.name != 'index.json':
             stale.unlink()

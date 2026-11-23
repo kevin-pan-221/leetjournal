@@ -1770,5 +1770,213 @@
   "return": {
    "type": "integer"
   }
+ },
+ "course-schedule-iii": {
+  "name": "scheduleCourse",
+  "params": [
+   {
+    "name": "courses",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "majority-element": {
+  "name": "majorityElement",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "move-zeroes": {
+  "name": "moveZeroes",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "sort-colors": {
+  "name": "sortColors",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "next-permutation": {
+  "name": "nextPermutation",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "merge-sorted-array": {
+  "name": "merge",
+  "params": [
+   {
+    "name": "nums1",
+    "type": "integer[]"
+   },
+   {
+    "name": "m",
+    "type": "integer"
+   },
+   {
+    "name": "nums2",
+    "type": "integer[]"
+   },
+   {
+    "name": "n",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "rotate-array": {
+  "name": "rotate",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "void"
+  }
+ },
+ "subarray-sum-equals-k": {
+  "name": "subarraySum",
+  "params": [
+   {
+    "name": "nums",
+    "type": "integer[]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "decode-string": {
+  "name": "decodeString",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "string"
+  }
+ },
+ "asteroid-collision": {
+  "name": "asteroidCollision",
+  "params": [
+   {
+    "name": "asteroids",
+    "type": "integer[]"
+   }
+  ],
+  "return": {
+   "type": "integer[]"
+  }
+ },
+ "basic-calculator-ii": {
+  "name": "calculate",
+  "params": [
+   {
+    "name": "s",
+    "type": "string"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "top-k-frequent-words": {
+  "name": "topKFrequent",
+  "params": [
+   {
+    "name": "words",
+    "type": "string[]"
+   },
+   {
+    "name": "k",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "list<string>"
+  }
+ },
+ "interval-list-intersections": {
+  "name": "intervalIntersection",
+  "params": [
+   {
+    "name": "firstList",
+    "type": "integer[][]"
+   },
+   {
+    "name": "secondList",
+    "type": "integer[][]"
+   }
+  ],
+  "return": {
+   "type": "integer[][]"
+  }
+ },
+ "maximum-swap": {
+  "name": "maximumSwap",
+  "params": [
+   {
+    "name": "num",
+    "type": "integer"
+   }
+  ],
+  "return": {
+   "type": "integer"
+  }
+ },
+ "longest-common-prefix": {
+  "name": "longestCommonPrefix",
+  "params": [
+   {
+    "name": "strs",
+    "type": "string[]"
+   }
+  ],
+  "return": {
+   "type": "string"
+  }
  }
 }

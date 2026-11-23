@@ -88,7 +88,7 @@ export function BookEditor({ book, items, onClose, onUpdated, onItemsChanged, on
 
         <div className="book-editor-section">
           <h3>Import LeetCode problems</h3>
-          <p>Paste one or many LeetCode problem URLs. New problems use the topic and difficulty below; known problems retain their existing metadata.</p>
+          <p>Paste one or many LeetCode problem URLs. Problems on LeetCode’s list keep their real title, difficulty and topic, and stay one shared problem across all your books. The topic and difficulty below are only used for problems LeetJournal doesn’t know yet.</p>
           <textarea className="book-import-urls" value={urls} onChange={(event) => setUrls(event.target.value)} placeholder={'https://leetcode.com/problems/two-sum/\nhttps://leetcode.com/problems/valid-parentheses/'} />
           <div className="book-import-options">
             <label>Topic<input value={category} onChange={(event) => setCategory(event.target.value)} /></label>

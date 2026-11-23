@@ -25,6 +25,27 @@ struct CompanyBookSeed {
     problems: Vec<Problem>,
 }
 
+/// LeetCode's public problem list (scripts/catalog/fetch-leetcode-catalog.mjs).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LeetCodeCatalog {
+    fetched_at: String,
+    problems: Vec<CatalogProblem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CatalogProblem {
+    id: String,
+    number: i32,
+    title: String,
+    difficulty: String,
+    category: String,
+    paid_only: bool,
+}
+
+pub const GLOBAL_BOOK: &str = "leetcode-all";
+
 pub fn initialize(app: &AppHandle) -> AppResult<Db> {
     let dir = app
         .path()
@@ -157,6 +178,7 @@ pub(crate) fn test_connection() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
     migrate(&conn).unwrap();
+    crate::offline::initialize(&conn).unwrap();
     seed(&conn).unwrap();
     conn
 }
@@ -217,7 +239,90 @@ fn seed(conn: &Connection) -> AppResult<()> {
             [&company_catalog.source_commit],
         )?;
     }
+    seed_global_book(&tx)?;
+    remove_duplicate_problems(&tx)?;
     tx.commit()?;
+    Ok(())
+}
+
+/// Very early versions stored a few problems under short ids ("three-sum") next to the canonical
+/// slug row for the same LeetCode URL. Remove such a duplicate only when nothing refers to it, so no
+/// history, note, draft or book entry is ever lost.
+fn remove_duplicate_problems(tx: &Connection) -> AppResult<()> {
+    tx.execute(
+        "DELETE FROM problems WHERE is_curriculum=0
+           AND leetcode_url<>'https://leetcode.com/problems/'||id||'/'
+           AND EXISTS(SELECT 1 FROM problems c WHERE c.id<>problems.id AND c.leetcode_url=problems.leetcode_url
+                      AND c.leetcode_url='https://leetcode.com/problems/'||c.id||'/')
+           AND NOT EXISTS(SELECT 1 FROM attempts WHERE problem_id=problems.id)
+           AND NOT EXISTS(SELECT 1 FROM reviews WHERE problem_id=problems.id)
+           AND NOT EXISTS(SELECT 1 FROM daily_plan WHERE problem_id=problems.id)
+           AND NOT EXISTS(SELECT 1 FROM problem_book_items WHERE problem_id=problems.id)
+           AND NOT EXISTS(SELECT 1 FROM offline_problems WHERE problem_id=problems.id)
+           AND NOT EXISTS(SELECT 1 FROM offline_submissions WHERE problem_id=problems.id)",
+        [],
+    )?;
+    Ok(())
+}
+
+/// Every problem is stored once, keyed by its LeetCode slug; books only reference it. The catalog
+/// gives every problem its real title, difficulty and topic (so URL imports need no guessing) and
+/// fills the built-in "All LeetCode Problems" book with every free problem.
+fn seed_global_book(tx: &Connection) -> AppResult<()> {
+    let catalog: LeetCodeCatalog =
+        serde_json::from_str(include_str!("../data/leetcode_catalog.json"))?;
+    let version = format!("{}:{}", catalog.fetched_at, catalog.problems.len());
+    let current: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM settings WHERE key='leetcode_catalog_version' AND value=?)",
+        [&version],
+        |row| row.get(0),
+    )?;
+    if current {
+        return Ok(());
+    }
+    tx.execute("INSERT INTO problem_books(id,title,subtitle,description,accent,order_index,built_in,created_at)
+      VALUES(?1,'All LeetCode Problems','Every free problem, in one place','Every free LeetCode problem by number. A problem keeps one history, notes and offline copy, whichever book you open it from.','navy',99,1,datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title,subtitle=excluded.subtitle,description=excluded.description,accent=excluded.accent,order_index=excluded.order_index,built_in=1", [GLOBAL_BOOK])?;
+    tx.execute(
+        "DELETE FROM problem_book_items WHERE book_id=?",
+        [GLOBAL_BOOK],
+    )?;
+    let mut insert = tx.prepare(
+        "INSERT OR IGNORE INTO problems(id,title,category,difficulty,leetcode_url,neetcode_url,order_index,category_order,is_curriculum)
+         VALUES(?1,?2,?3,?4,?5,NULL,?6,0,0)",
+    )?;
+    // Earlier URL imports guessed the title from the slug; replace only those guesses.
+    let mut correct = tx.prepare(
+        "UPDATE problems SET title=?2,difficulty=?3 WHERE id=?1 AND is_curriculum=0 AND title=?4",
+    )?;
+    let mut add = tx.prepare(
+        "INSERT INTO problem_book_items(book_id,problem_id,order_index) VALUES(?1,?2,?3)",
+    )?;
+    for p in &catalog.problems {
+        let url = format!("https://leetcode.com/problems/{}/", p.id);
+        insert.execute(params![
+            p.id,
+            p.title,
+            p.category,
+            p.difficulty,
+            url,
+            p.number
+        ])?;
+        correct.execute(params![
+            p.id,
+            p.title,
+            p.difficulty,
+            crate::commands::title_from_slug(&p.id)
+        ])?;
+        if !p.paid_only {
+            add.execute(params![GLOBAL_BOOK, p.id, p.number])?;
+        }
+    }
+    tx.execute(
+        "INSERT INTO settings(key,value) VALUES('leetcode_catalog_version',?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        [&version],
+    )?;
     Ok(())
 }
 
@@ -285,6 +390,104 @@ mod tests {
         assert!(problems
             .iter()
             .all(|p| matches!(p.difficulty.as_str(), "Easy" | "Medium" | "Hard")));
+    }
+
+    #[test]
+    fn global_book_shares_one_problem_across_books() {
+        let conn = test_connection();
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
+        let catalog: LeetCodeCatalog =
+            serde_json::from_str(include_str!("../data/leetcode_catalog.json")).unwrap();
+        let free = catalog.problems.iter().filter(|p| !p.paid_only).count() as i64;
+        assert!(free > 3000);
+        assert_eq!(
+            count("SELECT COUNT(*) FROM problem_book_items WHERE book_id='leetcode-all'"),
+            free
+        );
+        // Course Schedule III: one problem row, listed by the global and a company book.
+        assert_eq!(
+            count("SELECT COUNT(*) FROM problems WHERE id='course-schedule-iii'"),
+            1
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM problem_book_items WHERE problem_id='course-schedule-iii'"),
+            2
+        );
+        // NeetCode problems keep their curriculum metadata; premium-only problems stay out.
+        let (category, curriculum): (String, bool) = conn
+            .query_row(
+                "SELECT category,is_curriculum FROM problems WHERE id='two-sum'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((category.as_str(), curriculum), ("Arrays & Hashing", true));
+        assert_eq!(count("SELECT COUNT(*) FROM problem_book_items WHERE book_id='leetcode-all' AND problem_id='meeting-rooms'"), 0);
+        assert_eq!(
+            count("SELECT COUNT(*) FROM problems WHERE id='meeting-rooms'"),
+            1
+        );
+    }
+
+    #[test]
+    fn catalog_corrects_titles_guessed_by_earlier_imports() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        crate::offline::initialize(&conn).unwrap();
+        conn.execute("INSERT INTO problems(id,title,category,difficulty,leetcode_url,order_index,category_order,is_curriculum)
+            VALUES('lru-cache-ii','Lru Cache Ii','Custom','Medium','https://leetcode.com/problems/lru-cache-ii/',1,0,0),
+                  ('course-schedule-iii','Course Schedule Iii','Mine','Medium','https://leetcode.com/problems/course-schedule-iii/',2,0,0),
+                  ('design-hashmap','My own title','Mine','Easy','https://leetcode.com/problems/design-hashmap/',3,0,0)", []).unwrap();
+        seed(&conn).unwrap();
+        let row = |id: &str| -> (String, String, String) {
+            conn.query_row(
+                "SELECT title,difficulty,category FROM problems WHERE id=?",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            row("course-schedule-iii"),
+            ("Course Schedule III".into(), "Hard".into(), "Mine".into())
+        );
+        // A title someone actually wrote is kept.
+        assert_eq!(row("design-hashmap").0, "My own title");
+        assert_eq!(row("lru-cache-ii").0, "Lru Cache Ii");
+        seed(&conn).unwrap(); // a second launch is a no-op
+    }
+
+    #[test]
+    fn unreferenced_legacy_duplicates_are_removed_and_referenced_ones_kept() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON").unwrap();
+        migrate(&conn).unwrap();
+        crate::offline::initialize(&conn).unwrap();
+        seed(&conn).unwrap();
+        conn.execute_batch("INSERT INTO problems(id,title,category,difficulty,leetcode_url,order_index,category_order,is_curriculum)
+            VALUES('three-sum','3Sum','Two Pointers','Medium','https://leetcode.com/problems/3sum/',1,0,0),
+                  ('best-time-stock','Best Time','Sliding Window','Easy','https://leetcode.com/problems/best-time-to-buy-and-sell-stock/',2,0,0),
+                  ('only-copy','Only copy','Custom','Easy','https://leetcode.com/problems/some-unlisted-problem/',3,0,0);
+            INSERT INTO attempts(problem_id,started_at) VALUES('best-time-stock','2026-01-01T00:00:00Z');").unwrap();
+        seed(&conn).unwrap();
+        let exists = |id: &str| -> bool {
+            conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM problems WHERE id=?)",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert!(!exists("three-sum"));
+        assert!(exists("3sum"));
+        assert!(
+            exists("best-time-stock"),
+            "a row with history is never removed"
+        );
+        assert!(
+            exists("only-copy"),
+            "a row without a canonical twin is kept"
+        );
     }
 
     #[test]

@@ -3,3 +3,4 @@
 
 .offline-accepted{font-style:normal;color:#5f7545;font-weight:600}
 .reflection-judge{display:flex;align-items:center;gap:6px;margin:4px 0 14px;font-size:11px;color:#6d6a60}.reflection-judge b.good{color:#4d7a2c}.reflection-judge b.bad{color:#a24e3a}
+.problem-shelves{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:14px;font-size:10px;color:var(--muted)}.problem-shelves select{border:1px solid #d9cfbf;background:#fffdf8;border-radius:8px;padding:5px 8px;font-size:10px;color:#5b5042}.problem-shelves small{color:#5f7545}

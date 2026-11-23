@@ -77,6 +77,7 @@ export const api = {
     invoke<void>('remove_book_problem', { bookId, problemId }),
   deleteBook: (bookId: string) => invoke<void>('delete_problem_book', { bookId }),
   bookProblems: (bookId: string) => invoke<ProblemOverview[]>('get_book_problems', { bookId }),
+  problemBooks: (problemId: string) => invoke<string[]>('get_problem_books', { problemId }),
   askQwen: async (prompt: string, onToken: (token: string) => void): Promise<void> => {
     const onTokenChannel = new Channel<string>()
     onTokenChannel.onmessage = onToken

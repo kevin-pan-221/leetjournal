@@ -7,13 +7,18 @@ import { parseMetadata } from '../src/offline/tests.ts'
 
 const pack = slug => readFile(new URL(`../public/offline-judge/${slug}.json`, import.meta.url), 'utf8').then(JSON.parse)
 
-test('judge pack covers NeetCode 150 with valid, parseable packs', async () => {
-  const expected = (await readFile(new URL('../scripts/judge/neetcode150.txt', import.meta.url), 'utf8')).split('\n').filter(Boolean)
+test('judge pack covers NeetCode 150 and the extra problems with valid, parseable packs', async () => {
+  const list = name => readFile(new URL(`../scripts/judge/${name}`, import.meta.url), 'utf8').then(text => text.split('\n').filter(Boolean))
+  const neetcode = await list('neetcode150.txt')
+  const extra = await list('extra.txt')
+  const expected = [...neetcode, ...extra]
   const index = JSON.parse(await readFile(new URL('../public/offline-judge/index.json', import.meta.url), 'utf8'))
-  assert.equal(expected.length, 150)
+  assert.equal(neetcode.length, 150)
+  assert.ok(extra.includes('course-schedule-iii'))
+  assert.equal(new Set(expected).size, expected.length)
   assert.deepEqual(Object.keys(index.problems).sort(), [...expected].sort())
   const files = (await readdir(new URL('../public/offline-judge/', import.meta.url))).filter(f => f !== 'index.json')
-  assert.equal(files.length, 150)
+  assert.equal(files.length, expected.length)
   let bundled = 0
   for (const slug of expected) {
     const value = await pack(slug)
